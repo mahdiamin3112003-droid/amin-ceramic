@@ -1,5 +1,393 @@
-// AI — docs/03-database-design.md
-//
-// Placeholder. This domain's models land in Phase 1 with the full schema.
-// The file exists now so the split from §15.1 is established rather than
-// invented later, and so nobody has to guess where a model belongs.
+// ─────────────────────────────────────────────────────────────────────────────
+// AI domain — docs/03-database-design.md §9
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum FinderGateResult {
+  accepted
+  not_a_tile
+  too_dark
+  too_angled
+  unsafe
+
+  @@map("finder_gate_result")
+}
+
+enum FinderConfidenceBand {
+  strong
+  moderate
+  weak
+  none
+
+  @@map("finder_confidence_band")
+}
+
+enum AssistantType {
+  interior
+  admin
+  search
+
+  @@map("assistant_type")
+}
+
+enum AiConversationStatus {
+  active
+  completed
+  abandoned
+
+  @@map("ai_conversation_status")
+}
+
+enum AiMessageRole {
+  system
+  user
+  assistant
+  tool
+
+  @@map("ai_message_role")
+}
+
+enum AiToolCallStatus {
+  success
+  error
+  timeout
+
+  @@map("ai_tool_call_status")
+}
+
+enum AiFeature {
+  tile_finder
+  assistant
+  ingestion_extract
+  ingestion_copy
+  embedding_visual
+  embedding_semantic
+  alt_text
+  translation
+  rerank
+  safety_gate
+  visualizer
+
+  @@map("ai_feature")
+}
+
+enum AiProvider {
+  openai
+  gemini
+  siglip_host
+  local
+
+  @@map("ai_provider")
+}
+
+enum AiOperation {
+  chat
+  vision
+  embed
+  rerank
+  image_gen
+
+  @@map("ai_operation")
+}
+
+enum AiInteractionStatus {
+  success
+  error
+  timeout
+  rate_limited
+  filtered
+
+  @@map("ai_interaction_status")
+}
+
+enum AiFeedbackReferenceType {
+  finder_result
+  ai_message
+  recommendation
+  generated_copy
+
+  @@map("ai_feedback_reference_type")
+}
+
+enum AiFeedbackRating {
+  positive
+  negative
+
+  @@map("ai_feedback_rating")
+}
+
+enum AiFeedbackReason {
+  wrong_colour
+  wrong_size
+  wrong_finish
+  not_relevant
+  inaccurate_spec
+  other
+
+  @@map("ai_feedback_reason")
+}
+
+/// See file-level note style used elsewhere: §9.4 specifies
+/// ai_interaction.reference_type as "enum" without a value list. Values
+/// chosen to match what an AI call can plausibly be attributed to.
+enum AiInteractionReferenceType {
+  finder_session
+  ai_conversation
+  quote_request
+  ingestion_job
+  product
+
+  @@map("ai_interaction_reference_type")
+}
+
+/// §9.1. Separate from product: vectors are large and would bloat every
+/// catalog SELECT *; embeddings regenerate on a different cadence than
+/// product edits; model versions change independently, requiring rows to
+/// coexist during a re-index. halfvec (not vector) halves index size for
+/// under 0.5% recall loss (§9.1's own reasoning). Re-indexing without
+/// downtime: a new model version writes is_current = false rows; a single
+/// transaction flips the flags once coverage hits 100%.
+model ProductEmbedding {
+  id        String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+
+  /// halfvec(1152) — SigLIP 2 image encoder. Unsupported: Prisma has no
+  /// native pgvector type, same pattern as ltree in catalog.prisma.
+  visualEmbedding   Unsupported("halfvec(1152)")? @map("visual_embedding")
+  /// halfvec(1536) — text-embedding-3-large, Matryoshka-truncated.
+  semanticEmbedding Unsupported("halfvec(1536)")? @map("semantic_embedding")
+
+  visualModel          String? @map("visual_model")
+  semanticModel        String? @map("semantic_model")
+  visualModelVersion   String? @map("visual_model_version")
+  semanticModelVersion String? @map("semantic_model_version")
+
+  sourceMediaId      String?   @map("source_media_id") @db.Uuid
+  embeddingInputHash String?   @map("embedding_input_hash")
+  /// Exactly one current row per product per model family.
+  isCurrent          Boolean   @map("is_current")
+  generatedAt        DateTime? @map("generated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, productId])
+  @@map("product_embedding")
+}
+
+/// §9.2. id is shareable — /tile-finder/results/[id].
+model FinderSession {
+  id        String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  visitorId String  @map("visitor_id") @db.Uuid
+  appUserId String? @map("app_user_id") @db.Uuid
+
+  uploadId   String? @map("upload_id") @db.Uuid
+  /// Perceptual hash — cache key for repeat uploads.
+  imagePhash String? @map("image_phash")
+
+  gateResult          FinderGateResult @map("gate_result")
+  /// Colour, finish, look, format guess from the VLM.
+  extractedAttributes Json?            @map("extracted_attributes")
+  /// The "adjust our reading" control — this is labelled training data.
+  userCorrections     Json?            @map("user_corrections")
+
+  /// halfvec(1152) — stored so results are reproducible.
+  queryVisualEmbedding Unsupported("halfvec(1152)")? @map("query_visual_embedding")
+
+  topScore          Decimal?              @map("top_score") @db.Decimal(6, 5)
+  scoreDistribution Json?                 @map("score_distribution")
+  confidenceBand    FinderConfidenceBand? @map("confidence_band")
+  resultCount       Int?                  @map("result_count") @db.SmallInt
+  latencyMs         Int?                  @map("latency_ms")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor Visitor        @relation(fields: [visitorId], references: [id], onDelete: Restrict)
+  appUser AppUser?       @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  results FinderResult[]
+
+  @@index([tenantId, visitorId])
+  @@map("finder_session")
+}
+
+/// Storing per-result outcomes is what makes match quality measurable —
+/// without was_clicked/was_quoted, "is the tile finder any good?" is
+/// unanswerable. calibrated_percent is stored separately from fused_score
+/// because the displayed percentage comes from a monotonic calibration
+/// fitted on labelled data; keeping both lets historical sessions be
+/// re-calibrated when the mapping improves.
+model FinderResult {
+  id              String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  finderSessionId String @map("finder_session_id") @db.Uuid
+  productId       String @map("product_id") @db.Uuid
+
+  rank              Int
+  visualScore       Decimal? @map("visual_score") @db.Decimal(6, 5)
+  semanticScore     Decimal? @map("semantic_score") @db.Decimal(6, 5)
+  fusedScore        Decimal? @map("fused_score") @db.Decimal(6, 5)
+  calibratedPercent Decimal? @map("calibrated_percent") @db.Decimal(5, 2)
+  explanation       String?
+
+  wasClicked Boolean @default(false) @map("was_clicked")
+  wasSaved   Boolean @default(false) @map("was_saved")
+  wasQuoted  Boolean @default(false) @map("was_quoted")
+
+  finderSession FinderSession @relation(fields: [finderSessionId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([finderSessionId, rank])
+  @@map("finder_result")
+}
+
+/// §9.3. Retention: anonymous conversations expire after 90 days;
+/// conversations attached to a user or a quote are retained indefinitely.
+/// expires_at is set at creation and cleared on promotion.
+model AiConversation {
+  id        String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  visitorId String  @map("visitor_id") @db.Uuid
+  appUserId String? @map("app_user_id") @db.Uuid
+
+  assistantType AssistantType        @map("assistant_type")
+  /// Auto-summarised.
+  title         String?
+  locale        String?
+  status        AiConversationStatus @default(active)
+
+  messageCount    Int     @default(0) @map("message_count")
+  totalTokens     Int     @default(0) @map("total_tokens")
+  totalCostUsd    Decimal @default(0) @map("total_cost_usd") @db.Decimal(10, 6)
+  resultedInQuote Boolean @default(false) @map("resulted_in_quote")
+  quoteRequestId  String? @map("quote_request_id") @db.Uuid
+
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  lastMessageAt DateTime  @default(now()) @map("last_message_at") @db.Timestamptz(6)
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor      Visitor       @relation(fields: [visitorId], references: [id], onDelete: Restrict)
+  appUser      AppUser?      @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  quoteRequest QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+
+  messages AiMessage[]
+
+  @@index([tenantId, visitorId])
+  @@index([tenantId, status])
+  @@map("ai_conversation")
+}
+
+/// referenced_product_ids is the enforcement point for the grounding rule
+/// (Architecture §6.4): every product the assistant mentions must appear in
+/// a tool result. content_summary exists because long conversations get
+/// summarised for context-window management — storing the summary means the
+/// same history is never re-summarised twice.
+model AiMessage {
+  id             BigInt @id @default(autoincrement())
+  conversationId String @map("conversation_id") @db.Uuid
+
+  role                 AiMessageRole
+  sequence             Int
+  content              String?
+  contentSummary       String?       @map("content_summary")
+  toolPayload          Json?         @map("tool_payload")
+  referencedProductIds String[]      @default([]) @map("referenced_product_ids") @db.Uuid
+
+  model            String?
+  promptTokens     Int?    @map("prompt_tokens")
+  completionTokens Int?    @map("completion_tokens")
+  latencyMs        Int?    @map("latency_ms")
+  finishReason     String? @map("finish_reason")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  toolCalls    AiToolCall[]
+
+  @@unique([conversationId, sequence])
+  @@map("ai_message")
+}
+
+model AiToolCall {
+  id        String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  messageId BigInt @map("message_id")
+
+  toolName      String           @map("tool_name")
+  arguments     Json
+  resultSummary Json?            @map("result_summary")
+  resultRowIds  String[]         @default([]) @map("result_row_ids") @db.Uuid
+  status        AiToolCallStatus
+  durationMs    Int?             @map("duration_ms")
+  errorMessage  String?          @map("error_message")
+
+  message AiMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("ai_tool_call")
+}
+
+/// §9.4. One row per model call, across every feature — the table that
+/// makes AI spend controllable. request_hash + cache_hit prove the caching
+/// layer is working; a dropping cache-hit rate is an early warning that
+/// something upstream changed. RANGE-partitioned by created_at (§13.2).
+///
+/// PK is (id, created_at), not id alone — see the same note on
+/// InventoryMovement/ProductView.
+model AiInteraction {
+  id       BigInt @default(autoincrement())
+  tenantId String @map("tenant_id") @db.Uuid
+
+  feature      AiFeature
+  provider     AiProvider
+  model        String?
+  modelVersion String?     @map("model_version")
+  operation    AiOperation
+
+  inputTokens  Int?    @map("input_tokens")
+  outputTokens Int?    @map("output_tokens")
+  imageCount   Int?    @map("image_count")
+  costUsd      Decimal @default(0) @map("cost_usd") @db.Decimal(10, 6)
+  latencyMs    Int?    @map("latency_ms")
+
+  status       AiInteractionStatus
+  errorCode    String?             @map("error_code")
+  errorMessage String?             @map("error_message")
+
+  cacheHit    Boolean? @map("cache_hit")
+  requestHash String?  @map("request_hash")
+
+  referenceType AiInteractionReferenceType? @map("reference_type")
+  referenceId   String?                     @map("reference_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([id, createdAt])
+  @@index([tenantId, feature, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("ai_interaction")
+}
+
+/// Structured reasons rather than free text, because free-text feedback is
+/// unanalysable at volume.
+model AiFeedback {
+  id        String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  visitorId String @map("visitor_id") @db.Uuid
+
+  referenceType AiFeedbackReferenceType @map("reference_type")
+  referenceId   String                  @map("reference_id") @db.Uuid
+  rating        AiFeedbackRating
+  reason        AiFeedbackReason?
+  comment       String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, referenceType, referenceId])
+  @@map("ai_feedback")
+}

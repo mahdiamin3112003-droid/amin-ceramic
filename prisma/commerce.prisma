@@ -1,5 +1,402 @@
-// COMMERCE — docs/03-database-design.md
+// ─────────────────────────────────────────────────────────────────────────────
+// Commerce: quotes, samples, bookings — docs/03-database-design.md §7
 //
-// Placeholder. This domain's models land in Phase 1 with the full schema.
-// The file exists now so the split from §15.1 is established rather than
-// invented later, and so nobody has to guess where a model belongs.
+// NOTE (flagging per CLAUDE.md rule 5, not silently inventing): §7.2's
+// `space_type` and §7.5's `sample_request_item.status` are specified as
+// "enum" with no value list in the doc. Reasonable vocabularies are used
+// below (kitchen/bathroom/... for space_type; pending/packed/shipped/
+// delivered/cancelled for the item status) — flag to the user if these should
+// differ.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum QuoteRequestStatus {
+  draft
+  submitted
+  acknowledged
+  quoted
+  negotiating
+  won
+  lost
+  expired
+  cancelled
+
+  @@map("quote_request_status")
+}
+
+enum ProjectType {
+  residential
+  commercial
+  hospitality
+  retail
+  renovation
+  new_build
+
+  @@map("project_type")
+}
+
+enum QuoteTimeline {
+  immediate
+  within_1_month
+  within_3_months
+  within_6_months
+  planning
+
+  @@map("quote_timeline")
+}
+
+enum QuoteSource {
+  catalog
+  tile_finder
+  assistant
+  project
+  showroom
+  whatsapp
+  direct
+
+  @@map("quote_source")
+}
+
+enum QuoteLostReason {
+  price
+  availability
+  timeline
+  competitor
+  no_response
+  other
+
+  @@map("quote_lost_reason")
+}
+
+/// See file-level note — vocabulary not specified in §7.2.
+enum SpaceType {
+  kitchen
+  bathroom
+  living_room
+  bedroom
+  hallway
+  outdoor
+  commercial_space
+  other
+
+  @@map("space_type")
+}
+
+enum SampleRequestStatus {
+  requested
+  approved
+  preparing
+  shipped
+  delivered
+  collected
+  cancelled
+
+  @@map("sample_request_status")
+}
+
+enum SampleFulfilmentType {
+  ship
+  collect
+
+  @@map("sample_fulfilment_type")
+}
+
+enum SampleType {
+  chip
+  full_tile
+  board
+
+  @@map("sample_type")
+}
+
+/// See file-level note — vocabulary not specified in §7.5.
+enum SampleItemStatus {
+  pending
+  packed
+  shipped
+  delivered
+  cancelled
+
+  @@map("sample_item_status")
+}
+
+enum BookingPurpose {
+  browse
+  consultation
+  sample_collection
+  quote_review
+
+  @@map("booking_purpose")
+}
+
+enum BookingStatus {
+  requested
+  confirmed
+  completed
+  no_show
+  cancelled
+
+  @@map("booking_status")
+}
+
+/// §7.1. `responded_at - submitted_at` is the response-time SLA metric the
+/// admin dashboard surfaces. `source`/`source_session_id` are the AI-ROI
+/// attribution the whole AI investment is measured against.
+model QuoteRequest {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// Guests quote too — visitor is never null.
+  visitorId String  @map("visitor_id") @db.Uuid
+  appUserId String? @map("app_user_id") @db.Uuid
+
+  /// Human-facing, e.g. AC-2026-0847.
+  reference String @unique
+
+  status QuoteRequestStatus @default(draft)
+
+  /// Snapshotted, not joined — the contact at request time, not app_user's
+  /// current profile.
+  contactName     String? @map("contact_name")
+  contactEmail    String? @map("contact_email")
+  contactPhone    String? @map("contact_phone")
+  contactWhatsapp String? @map("contact_whatsapp")
+  companyName     String? @map("company_name")
+
+  projectType     ProjectType?   @map("project_type")
+  projectAddress  String?        @map("project_address")
+  projectCity     String?        @map("project_city")
+  timeline        QuoteTimeline?
+  estimatedBudget Decimal?       @map("estimated_budget") @db.Decimal(12, 2)
+
+  preferredLocationId String? @map("preferred_location_id") @db.Uuid
+  floorPlanUploadId   String? @map("floor_plan_upload_id") @db.Uuid
+
+  notes String?
+
+  source          QuoteSource
+  sourceSessionId String?     @map("source_session_id") @db.Uuid
+
+  subtotal      Decimal? @db.Decimal(12, 4)
+  quotedTotal   Decimal? @map("quoted_total") @db.Decimal(12, 4)
+  currency      String?  @db.Char(3)
+  totalWeightKg Decimal? @map("total_weight_kg") @db.Decimal(12, 4)
+  totalAreaM2   Decimal? @map("total_area_m2") @db.Decimal(12, 4)
+
+  priceTierId String? @map("price_tier_id") @db.Uuid
+  assignedTo  String? @map("assigned_to") @db.Uuid
+
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(6)
+  respondedAt DateTime? @map("responded_at") @db.Timestamptz(6)
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
+  closedAt    DateTime? @map("closed_at") @db.Timestamptz(6)
+
+  lostReason QuoteLostReason? @map("lost_reason")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  tenant            Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor           Visitor    @relation(fields: [visitorId], references: [id], onDelete: Restrict)
+  appUser           AppUser?   @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  preferredLocation Location?  @relation(fields: [preferredLocationId], references: [id], onDelete: SetNull)
+  priceTier         PriceTier? @relation(fields: [priceTierId], references: [id], onDelete: SetNull)
+
+  zones            QuoteRequestZone[]
+  items            QuoteRequestItem[]
+  statusHistory    QuoteStatusHistory[]
+  showroomBookings ShowroomBooking[]
+  aiConversations  AiConversation[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, visitorId])
+  @@index([tenantId, assignedTo])
+  @@map("quote_request")
+}
+
+/// §7.2. Zones turn a cart into a project document (UX §3.7) — exactly the
+/// structure a salesperson needs to produce a real quote. wastage_pct
+/// cascades from layout pattern → product → tenant default, resolved at
+/// insert and stored (not recomputed later).
+model QuoteRequestZone {
+  id             String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  quoteRequestId String @map("quote_request_id") @db.Uuid
+
+  name            String
+  spaceType       SpaceType? @map("space_type")
+  areaM2          Decimal    @map("area_m2") @db.Decimal(12, 4)
+  layoutPatternId String?    @map("layout_pattern_id") @db.Uuid
+  wastagePct      Decimal    @map("wastage_pct") @db.Decimal(5, 2)
+  sortOrder       Int        @default(0) @map("sort_order")
+  notes           String?
+
+  quoteRequest  QuoteRequest       @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  layoutPattern LayoutPattern?     @relation(fields: [layoutPatternId], references: [id], onDelete: SetNull)
+  items         QuoteRequestItem[]
+
+  @@index([quoteRequestId])
+  @@map("quote_request_zone")
+}
+
+/// §7.3. The snapshot columns are the most important design decision in this
+/// domain — a quote issued in March must render identically in September even
+/// if the price rose, the name changed, or the product was discontinued.
+/// product_id is retained for analytics/reordering; the snapshot is what the
+/// document renders.
+model QuoteRequestItem {
+  id             String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  quoteRequestId String  @map("quote_request_id") @db.Uuid
+  zoneId         String? @map("zone_id") @db.Uuid
+  productId      String  @map("product_id") @db.Uuid
+
+  quantityM2     Decimal @map("quantity_m2") @db.Decimal(12, 4)
+  quantityBoxes  Int?    @map("quantity_boxes")
+  quantityPieces Int?    @map("quantity_pieces")
+
+  skuSnapshot       String   @map("sku_snapshot")
+  nameSnapshot      String   @map("name_snapshot")
+  unitPriceSnapshot Decimal  @map("unit_price_snapshot") @db.Decimal(12, 4)
+  currencySnapshot  String   @map("currency_snapshot") @db.Char(3)
+  m2PerBoxSnapshot  Decimal? @map("m2_per_box_snapshot") @db.Decimal(10, 4)
+  kgPerBoxSnapshot  Decimal? @map("kg_per_box_snapshot") @db.Decimal(10, 4)
+  /// Full spec as displayed at request time.
+  specSnapshot      Json     @default("{}") @map("spec_snapshot")
+
+  lineTotal Decimal @map("line_total") @db.Decimal(12, 4)
+
+  /// Set on reservation.
+  stockLotId  String?  @map("stock_lot_id") @db.Uuid
+  isSingleLot Boolean? @map("is_single_lot")
+
+  notes String?
+
+  quoteRequest QuoteRequest      @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  zone         QuoteRequestZone? @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  product      Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
+  stockLot     StockLot?         @relation(fields: [stockLotId], references: [id], onDelete: SetNull)
+
+  @@index([quoteRequestId])
+  @@index([zoneId])
+  @@index([productId])
+  @@map("quote_request_item")
+}
+
+/// §7.4. Append-only — powers the kanban board's cycle-time reporting and
+/// answers "who moved this to lost and why".
+model QuoteStatusHistory {
+  id             String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  quoteRequestId String @map("quote_request_id") @db.Uuid
+
+  fromStatus QuoteRequestStatus? @map("from_status")
+  toStatus   QuoteRequestStatus  @map("to_status")
+  changedBy  String?             @map("changed_by") @db.Uuid
+  note       String?
+  changedAt  DateTime            @default(now()) @map("changed_at") @db.Timestamptz(6)
+
+  quoteRequest QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+
+  @@index([quoteRequestId, changedAt])
+  @@map("quote_status_history")
+}
+
+/// §7.5. A trigger enforces the 3-sample limit per visitor per 30 days;
+/// shipped samples write `sample` movements to the inventory ledger — samples
+/// come out of real stock, and pretending otherwise makes the ledger lie.
+model SampleRequest {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  visitorId String  @map("visitor_id") @db.Uuid
+  appUserId String? @map("app_user_id") @db.Uuid
+
+  reference String @unique
+
+  status         SampleRequestStatus  @default(requested)
+  fulfilmentType SampleFulfilmentType @map("fulfilment_type")
+  locationId     String?              @map("location_id") @db.Uuid
+
+  shippingAddressLine1 String? @map("shipping_address_line1")
+  shippingAddressLine2 String? @map("shipping_address_line2")
+  shippingCity         String? @map("shipping_city")
+  shippingRegion       String? @map("shipping_region")
+  shippingPostalCode   String? @map("shipping_postal_code")
+  shippingCountryCode  String? @map("shipping_country_code") @db.Char(2)
+
+  trackingNumber String? @map("tracking_number")
+  carrier        String?
+
+  requestedAt DateTime  @default(now()) @map("requested_at") @db.Timestamptz(6)
+  shippedAt   DateTime? @map("shipped_at") @db.Timestamptz(6)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor  Visitor   @relation(fields: [visitorId], references: [id], onDelete: Restrict)
+  appUser  AppUser?  @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  items SampleRequestItem[]
+
+  @@index([tenantId, visitorId, requestedAt])
+  @@index([tenantId, status])
+  @@map("sample_request")
+}
+
+model SampleRequestItem {
+  id              String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  sampleRequestId String @map("sample_request_id") @db.Uuid
+  productId       String @map("product_id") @db.Uuid
+
+  quantity   Int
+  sampleType SampleType       @map("sample_type")
+  status     SampleItemStatus @default(pending)
+
+  sampleRequest SampleRequest @relation(fields: [sampleRequestId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([sampleRequestId])
+  @@index([productId])
+  @@map("sample_request_item")
+}
+
+/// §7.6. The quote_request_id link is the feature that matters: the
+/// customer's basket arrives at the showroom before they do.
+///
+/// project_id forward-references the engagement domain's `project` table,
+/// which doesn't exist yet in migration order (commerce lands before
+/// engagement). Declared as a plain column here, not a Prisma relation; the
+/// FK constraint and the reverse relation are added when engagement's
+/// constraints migration lands.
+model ShowroomBooking {
+  id         String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  locationId String  @map("location_id") @db.Uuid
+  visitorId  String? @map("visitor_id") @db.Uuid
+  appUserId  String? @map("app_user_id") @db.Uuid
+
+  contactName  String? @map("contact_name")
+  contactEmail String? @map("contact_email")
+  contactPhone String? @map("contact_phone")
+
+  scheduledAt     DateTime       @map("scheduled_at") @db.Timestamptz(6)
+  durationMinutes Int            @map("duration_minutes")
+  partySize       Int?           @map("party_size")
+  purpose         BookingPurpose
+  quoteRequestId  String?        @map("quote_request_id") @db.Uuid
+  projectId       String?        @map("project_id") @db.Uuid
+  status          BookingStatus  @default(requested)
+  assignedTo      String?        @map("assigned_to") @db.Uuid
+  notes           String?
+  reminderSentAt  DateTime?      @map("reminder_sent_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  location     Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  visitor      Visitor?      @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+  appUser      AppUser?      @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  quoteRequest QuoteRequest? @relation(fields: [quoteRequestId], references: [id], onDelete: SetNull)
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, locationId, scheduledAt])
+  @@index([tenantId, status])
+  @@map("showroom_booking")
+}

@@ -1,5 +1,693 @@
-// CATALOG — docs/03-database-design.md
+// CATALOG — docs/03-database-design.md §3
 //
-// Placeholder. This domain's models land in Phase 1 with the full schema.
-// The file exists now so the split from §15.1 is established rather than
-// invented later, and so nobody has to guess where a model belongs.
+// The central domain. `product` is locale-independent facts only — anything
+// that varies by language lives in `product_translation` (§3.3), and anything
+// filterable-but-open-vocabulary lives in a lookup table rather than a native
+// enum, per the rule in §5.3: native enum when code branches on the value,
+// lookup table when it is a business vocabulary Amin extends without a deploy.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Native enums — code contracts, not business vocabulary (§5.3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ShadeVariation {
+  V1
+  V2
+  V3
+  V4
+
+  @@map("shade_variation")
+}
+
+enum SlipRating {
+  R9
+  R10
+  R11
+  R12
+  R13
+
+  @@map("slip_rating")
+}
+
+enum PriceVisibility {
+  public
+  trade_only
+  on_request
+
+  @@map("price_visibility")
+}
+
+enum ProductStatus {
+  draft
+  review
+  published
+  archived
+  discontinued
+
+  @@map("product_status")
+}
+
+enum ProductSource {
+  manual
+  ingestion
+  import
+  api
+
+  @@map("product_source")
+}
+
+enum AttributeDataType {
+  text
+  number
+  boolean
+  enum
+
+  @@map("attribute_data_type")
+}
+
+enum ProductRelationType {
+  related
+  trim
+  complete_the_look
+  same_look_different_format
+  same_look_lower_price
+  replacement
+  variant
+
+  @@map("product_relation_type")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Taxonomy — §3.1
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Brand {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  slug          String  @db.Citext
+  name          String
+  logoMediaId   String? @map("logo_media_id") @db.Uuid
+  originCountry String? @map("origin_country") @db.Char(2)
+  websiteUrl    String? @map("website_url")
+  sortOrder     Int     @default(0) @map("sort_order")
+  isActive      Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  collections Collection[]
+  products    Product[]
+
+  // Ingestion domain (prisma/ingestion.prisma)
+  ingestionJobs    IngestionJob[]
+  supplierMappings SupplierMapping[]
+
+  @@index([tenantId, slug])
+  @@map("brand")
+}
+
+/// A manufacturer's product family, e.g. "Calacatta Series". Copy lives in
+/// `collection_translation`.
+model Collection {
+  id       String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  brandId  String? @map("brand_id") @db.Uuid
+
+  slug        String        @db.Citext
+  heroMediaId String?       @map("hero_media_id") @db.Uuid
+  sortOrder   Int           @default(0) @map("sort_order")
+  isFeatured  Boolean       @default(false) @map("is_featured")
+  status      ProductStatus @default(draft)
+  publishedAt DateTime?     @map("published_at") @db.Timestamptz(6)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant       Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  brand        Brand?                  @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  products     Product[]
+  translations CollectionTranslation[]
+
+  @@index([tenantId, slug])
+  @@index([tenantId, brandId])
+  @@map("collection")
+}
+
+model CollectionTranslation {
+  collectionId String @map("collection_id") @db.Uuid
+  locale       String
+
+  name           String
+  description    String?
+  seoTitle       String? @map("seo_title")
+  seoDescription String? @map("seo_description")
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, locale])
+  @@map("collection_translation")
+}
+
+/// Hierarchical, self-referencing. `path` is a materialised ltree column
+/// maintained by trigger from `parentId` — normalised authority, denormalised
+/// access (§3.1). Modelled as `Unsupported` because Prisma has no native ltree
+/// type; the same pattern §15.2 uses for `halfvec`.
+model Category {
+  id       String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  parentId String? @map("parent_id") @db.Uuid
+
+  slug String @db.Citext
+
+  /// Materialised path, e.g. `floor.indoor.porcelain`. Maintained by trigger —
+  /// never written directly by the application.
+  path Unsupported("ltree")?
+
+  depth     Int     @default(0)
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@index([tenantId, parentId])
+  @@map("category")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lookup tables — §3.4. One shared shape, one `*_translation` sibling each.
+// Lookup, not enum, because these are vocabularies Amin extends without a
+// deploy (§5.3) — a merchandiser adding "bush-hammered" is a data insert here,
+// an ALTER TYPE if it were a native enum.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Material {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  key       String
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+  icon      String?
+  metadata  Json    @default("{}")
+
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  translations MaterialTranslation[]
+  products     Product[]
+
+  @@unique([tenantId, key])
+  @@map("material")
+}
+
+model MaterialTranslation {
+  materialId String @map("material_id") @db.Uuid
+  locale     String
+
+  name        String
+  description String?
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@id([materialId, locale])
+  @@map("material_translation")
+}
+
+model Finish {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  key       String
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+  icon      String?
+  metadata  Json    @default("{}")
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  translations FinishTranslation[]
+  products     Product[]
+
+  @@unique([tenantId, key])
+  @@map("finish")
+}
+
+model FinishTranslation {
+  finishId String @map("finish_id") @db.Uuid
+  locale   String
+
+  name        String
+  description String?
+
+  finish Finish @relation(fields: [finishId], references: [id], onDelete: Cascade)
+
+  @@id([finishId, locale])
+  @@map("finish_translation")
+}
+
+model SurfaceLook {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  key       String
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+  icon      String?
+  metadata  Json    @default("{}")
+
+  tenant       Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  translations SurfaceLookTranslation[]
+  products     Product[]
+
+  @@unique([tenantId, key])
+  @@map("surface_look")
+}
+
+model SurfaceLookTranslation {
+  surfaceLookId String @map("surface_look_id") @db.Uuid
+  locale        String
+
+  name        String
+  description String?
+
+  surfaceLook SurfaceLook @relation(fields: [surfaceLookId], references: [id], onDelete: Cascade)
+
+  @@id([surfaceLookId, locale])
+  @@map("surface_look_translation")
+}
+
+model ColorFamily {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  key       String
+  /// The swatch colour for the colour-family filter chip — distinct from
+  /// product.color_hex, which is the exact dominant colour of one product.
+  colorHex  String? @map("color_hex") @db.Char(7)
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+  icon      String?
+  metadata  Json    @default("{}")
+
+  tenant       Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  translations ColorFamilyTranslation[]
+  products     Product[]
+
+  @@unique([tenantId, key])
+  @@map("color_family")
+}
+
+model ColorFamilyTranslation {
+  colorFamilyId String @map("color_family_id") @db.Uuid
+  locale        String
+
+  name        String
+  description String?
+
+  colorFamily ColorFamily @relation(fields: [colorFamilyId], references: [id], onDelete: Cascade)
+
+  @@id([colorFamilyId, locale])
+  @@map("color_family_translation")
+}
+
+/// Referenced from `product.application_ids uuid[]`, deliberately an array
+/// rather than a junction table — §5.4. The set is small (~8 values) and the
+/// only query is containment, which GIN answers as fast as a join while
+/// removing a join from the hottest query in the system.
+model Application {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  key       String
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+  icon      String?
+  metadata  Json    @default("{}")
+
+  tenant       Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  translations ApplicationTranslation[]
+
+  @@unique([tenantId, key])
+  @@map("application")
+}
+
+model ApplicationTranslation {
+  applicationId String @map("application_id") @db.Uuid
+  locale        String
+
+  name        String
+  description String?
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@id([applicationId, locale])
+  @@map("application_translation")
+}
+
+/// Carries `defaultWastagePct` — the layout planner's real numbers (grid 7%,
+/// brick 10%, herringbone 15%, chevron 18%, modular 12%), per §3.4.
+model LayoutPattern {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  key               String
+  defaultWastagePct Decimal @map("default_wastage_pct") @db.Decimal(5, 2)
+  sortOrder         Int     @default(0) @map("sort_order")
+  isActive          Boolean @default(true) @map("is_active")
+  icon              String?
+  metadata          Json    @default("{}")
+
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  translations      LayoutPatternTranslation[]
+  quoteRequestZones QuoteRequestZone[]
+  projectZones      ProjectZone[]
+
+  @@unique([tenantId, key])
+  @@map("layout_pattern")
+}
+
+model LayoutPatternTranslation {
+  layoutPatternId String @map("layout_pattern_id") @db.Uuid
+  locale          String
+
+  name        String
+  description String?
+
+  layoutPattern LayoutPattern @relation(fields: [layoutPatternId], references: [id], onDelete: Cascade)
+
+  @@id([layoutPatternId, locale])
+  @@map("layout_pattern_translation")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// product — the central table — §3.2
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Product {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  sku         String  @db.Citext
+  supplierSku String? @map("supplier_sku")
+  ean         String?
+  gtin        String?
+
+  brandId      String  @map("brand_id") @db.Uuid
+  collectionId String? @map("collection_id") @db.Uuid
+  categoryId   String  @map("category_id") @db.Uuid
+
+  widthMm     Int     @map("width_mm")
+  heightMm    Int     @map("height_mm")
+  thicknessMm Decimal @map("thickness_mm") @db.Decimal(5, 2)
+
+  /// Display name, "60×120" — generated at ingest, editable.
+  nominalFormat String? @map("nominal_format")
+  /// Normalised bucket for filtering; 598×1198 and 600×1200 both -> "60x120".
+  /// The difference between a filter that works and one that returns 3
+  /// results instead of 412 (§3.2).
+  formatGroup   String? @map("format_group")
+
+  materialId    String @map("material_id") @db.Uuid
+  finishId      String @map("finish_id") @db.Uuid
+  surfaceLookId String @map("surface_look_id") @db.Uuid
+  colorFamilyId String @map("color_family_id") @db.Uuid
+
+  colorHex String?                        @map("color_hex") @db.Char(7)
+  /// CIELAB, stored as a 3-element numeric array — enables perceptual colour
+  /// distance, which hex cannot do. Prisma has no fixed-length array type;
+  /// modelled Unsupported like `path` and the embedding vectors.
+  colorLab Unsupported("numeric(6,3)[]")? @map("color_lab")
+
+  isRectified Boolean @default(false) @map("is_rectified")
+
+  shadeVariation     ShadeVariation? @map("shade_variation")
+  slipRating         SlipRating?     @map("slip_rating")
+  peiClass           Int?            @map("pei_class")
+  waterAbsorptionPct Decimal?        @map("water_absorption_pct") @db.Decimal(5, 3)
+  isFrostResistant   Boolean?        @map("is_frost_resistant")
+  isIndoor           Boolean         @map("is_indoor")
+  isOutdoor          Boolean         @map("is_outdoor")
+
+  /// Deliberately an array, not a junction table — see Application's doc
+  /// comment. A trigger validates every element exists in `application`.
+  applicationIds String[] @default([]) @map("application_ids") @db.Uuid
+
+  piecesPerBox   Int     @map("pieces_per_box")
+  /// The quantity calculator depends on this.
+  m2PerBox       Decimal @map("m2_per_box") @db.Decimal(8, 4)
+  kgPerBox       Decimal @map("kg_per_box") @db.Decimal(8, 3)
+  boxesPerPallet Int?    @map("boxes_per_pallet")
+
+  originCountry String? @map("origin_country") @db.Char(2)
+
+  /// Denormalised cache of the public-tier current price, maintained by
+  /// trigger on product_price. Exists so the catalog grid can sort/filter by
+  /// price without a temporal join on every row (§3.7, §5.6 #1).
+  basePrice       Decimal?        @map("base_price") @db.Decimal(12, 4)
+  currency        String          @db.Char(3)
+  priceVisibility PriceVisibility @map("price_visibility")
+
+  status         ProductStatus @default(draft)
+  isFeatured     Boolean       @default(false) @map("is_featured")
+  isNew          Boolean       @default(false) @map("is_new")
+  publishedAt    DateTime?     @map("published_at") @db.Timestamptz(6)
+  discontinuedAt DateTime?     @map("discontinued_at") @db.Timestamptz(6)
+
+  /// Denormalised for grid queries, maintained by trigger on product_media
+  /// (§4.3, §5.6 #2).
+  primaryMediaId String? @map("primary_media_id") @db.Uuid
+
+  /// Manual ranking lever for the sales team.
+  searchBoost Decimal @default(1.0) @map("search_boost") @db.Decimal(4, 2)
+
+  createdBy String?       @map("created_by") @db.Uuid
+  updatedBy String?       @map("updated_by") @db.Uuid
+  source    ProductSource @default(manual)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  brand       Brand       @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  collection  Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  material    Material    @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  finish      Finish      @relation(fields: [finishId], references: [id], onDelete: Restrict)
+  surfaceLook SurfaceLook @relation(fields: [surfaceLookId], references: [id], onDelete: Restrict)
+  colorFamily ColorFamily @relation(fields: [colorFamilyId], references: [id], onDelete: Restrict)
+
+  translations      ProductTranslation[]
+  attributeValues   ProductAttributeValue[]
+  prices            ProductPrice[]
+  relationsAsSource ProductRelation[]       @relation("RelationSource")
+  relationsAsTarget ProductRelation[]       @relation("RelationTarget")
+  media             ProductMedia[]
+
+  // Inventory domain (prisma/inventory.prisma)
+  stockLots          StockLot[]
+  inventoryMovements InventoryMovement[]
+  productStocks      ProductStock[]
+  showroomDisplays   ShowroomDisplay[]
+
+  // Commerce domain (prisma/commerce.prisma)
+  quoteRequestItems  QuoteRequestItem[]
+  sampleRequestItems SampleRequestItem[]
+
+  // Engagement domain (prisma/engagement.prisma)
+  savedItems   SavedItem[]
+  productViews ProductView[]
+  projectItems ProjectItem[]
+  stockAlerts  StockAlert[]
+
+  // AI domain (prisma/ai.prisma)
+  embeddings    ProductEmbedding[]
+  finderResults FinderResult[]
+
+  // Analytics domain (prisma/analytics.prisma)
+  dailyProductStats DailyProductStat[]
+
+  @@index([tenantId, brandId])
+  @@index([tenantId, categoryId])
+  @@map("product")
+}
+
+/// Locale-scoped copy. Separate table rather than jsonb per-locale columns —
+/// four reasons in §3.3, chief among them that tsvector needs a per-locale
+/// text-search configuration a JSONB path cannot carry.
+model ProductTranslation {
+  productId String @map("product_id") @db.Uuid
+  locale    String
+
+  /// Denormalised from product.tenant_id by trigger — see the constraints
+  /// migration. Needed because CLAUDE.md requires tenant_id leading every
+  /// composite index and every uniqueness constraint tenant-scoped, and the
+  /// slug-uniqueness index below can't join to product to get it.
+  tenantId String @map("tenant_id") @db.Uuid
+
+  name              String
+  slug              String   @db.Citext
+  shortDescription  String?  @map("short_description")
+  description       String?
+  installationNotes String?  @map("installation_notes")
+  careInstructions  String?  @map("care_instructions")
+  seoTitle          String?  @map("seo_title")
+  seoDescription    String?  @map("seo_description")
+  ogTitle           String?  @map("og_title")
+  ogDescription     String?  @map("og_description")
+  tags              String[] @default([])
+
+  /// Generated column — see the constraints migration. Excluded from the
+  /// Prisma client the same way vector columns are (§15.2).
+  searchVector Unsupported("tsvector")? @map("search_vector")
+
+  isMachineTranslated Boolean   @default(false) @map("is_machine_translated")
+  reviewedBy          String?   @map("reviewed_by") @db.Uuid
+  reviewedAt          DateTime? @map("reviewed_at") @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([productId, locale])
+  @@map("product_translation")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EAV escape hatch — §3.5
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// An attribute may be promoted to a real `product` column the moment it
+/// becomes filterable in the main catalog UI — EAV is for the long tail on
+/// the spec table, never the hot filter path (§3.5).
+model ProductAttribute {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  key          String
+  dataType     AttributeDataType @map("data_type")
+  unit         String?
+  isFilterable Boolean           @default(false) @map("is_filterable")
+  isComparable Boolean           @default(false) @map("is_comparable")
+  displayGroup String?           @map("display_group")
+  sortOrder    Int               @default(0) @map("sort_order")
+
+  tenant       Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  translations ProductAttributeTranslation[]
+  values       ProductAttributeValue[]
+
+  @@unique([tenantId, key])
+  @@map("product_attribute")
+}
+
+model ProductAttributeTranslation {
+  attributeId String @map("attribute_id") @db.Uuid
+  locale      String
+
+  name        String
+  description String?
+
+  attribute ProductAttribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  @@id([attributeId, locale])
+  @@map("product_attribute_translation")
+}
+
+model ProductAttributeValue {
+  productId   String @map("product_id") @db.Uuid
+  attributeId String @map("attribute_id") @db.Uuid
+
+  valueText     String?  @map("value_text")
+  valueNumber   Decimal? @map("value_number") @db.Decimal(14, 4)
+  valueBoolean  Boolean? @map("value_boolean")
+  /// Not FK-constrained: §3.5 does not specify an option table for `enum`-typed
+  /// attributes, so this is stored as a plain reference rather than an
+  /// invented relation.
+  valueOptionId String?  @map("value_option_id") @db.Uuid
+
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attribute ProductAttribute @relation(fields: [attributeId], references: [id], onDelete: Restrict)
+
+  @@id([productId, attributeId])
+  @@map("product_attribute_value")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// product_relation — §3.6
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// `isAutomatic` distinguishes curated relations (a merchandiser chose the
+/// bullnose trim) from vector-derived ones (the "same look, lower price"
+/// rail). A nightly rebuild only ever touches automatic rows — mixing the two
+/// without this flag is how a rebuild silently destroys human curation (§3.6).
+model ProductRelation {
+  productId        String              @map("product_id") @db.Uuid
+  relatedProductId String              @map("related_product_id") @db.Uuid
+  relationType     ProductRelationType @map("relation_type")
+
+  rank        Int      @default(0)
+  isAutomatic Boolean  @default(false) @map("is_automatic")
+  confidence  Decimal? @db.Decimal(4, 3)
+
+  product        Product @relation("RelationSource", fields: [productId], references: [id], onDelete: Cascade)
+  relatedProduct Product @relation("RelationTarget", fields: [relatedProductId], references: [id], onDelete: Cascade)
+
+  @@id([productId, relatedProductId, relationType])
+  @@map("product_relation")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pricing — §3.7
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PriceTier {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  key             String
+  name            String
+  /// Fallback discount when no explicit product_price row exists for this
+  /// tier at the requested quantity.
+  discountPct     Decimal  @default(0) @map("discount_pct") @db.Decimal(5, 2)
+  minAnnualVolume Decimal? @map("min_annual_volume") @db.Decimal(12, 4)
+  sortOrder       Int      @default(0) @map("sort_order")
+  isDefault       Boolean  @default(false) @map("is_default")
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  prices        ProductPrice[]
+  tradeAccounts TradeAccount[]
+  quoteRequests QuoteRequest[]
+
+  @@unique([tenantId, key])
+  @@map("price_tier")
+}
+
+/// Resolution chain (§3.7): explicit product_price for the caller's tier at
+/// their quantity and today's date -> product.base_price × (1 - tier discount)
+/// -> price_visibility = on_request. Volume breaks are multiple rows with
+/// ascending min_quantity_m2; the resolver takes the highest applicable.
+model ProductPrice {
+  id          String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+  productId   String @map("product_id") @db.Uuid
+  priceTierId String @map("price_tier_id") @db.Uuid
+
+  price         Decimal   @db.Decimal(12, 4)
+  currency      String    @db.Char(3)
+  minQuantityM2 Decimal   @default(0) @map("min_quantity_m2") @db.Decimal(10, 4)
+  validFrom     DateTime  @map("valid_from") @db.Timestamptz(6)
+  validTo       DateTime? @map("valid_to") @db.Timestamptz(6)
+
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceTier PriceTier @relation(fields: [priceTierId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, priceTierId, minQuantityM2, validFrom])
+  @@map("product_price")
+}

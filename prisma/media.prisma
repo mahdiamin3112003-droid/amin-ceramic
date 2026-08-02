@@ -1,5 +1,176 @@
-// MEDIA — docs/03-database-design.md
-//
-// Placeholder. This domain's models land in Phase 1 with the full schema.
-// The file exists now so the split from §15.1 is established rather than
-// invented later, and so nobody has to guess where a model belongs.
+// ─────────────────────────────────────────────────────────────────────────────
+// Media and file storage — docs/03-database-design.md §4
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum MediaProvider {
+  cloudinary
+  supabase
+
+  @@map("media_provider")
+}
+
+enum ProductMediaRole {
+  primary
+  gallery
+  room_scene
+  macro_detail
+  installed
+  technical_drawing
+  packaging
+  swatch
+
+  @@map("product_media_role")
+}
+
+enum UploadPurpose {
+  finder_query
+  ingestion_source
+  trade_document
+  floor_plan
+  visualizer_source
+  generated_pdf
+  generated_image
+
+  @@map("upload_purpose")
+}
+
+enum UploadScanStatus {
+  pending
+  clean
+  infected
+  skipped
+
+  @@map("upload_scan_status")
+}
+
+/// §4.2. Referenced by product, collection, brand and (later) project imagery.
+/// The application never constructs a URL from a raw path — always through
+/// this row's public_id/secure_url.
+model MediaAsset {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  provider MediaProvider
+
+  /// Cloudinary public_id or Supabase Storage object path.
+  publicId  String  @map("public_id")
+  secureUrl String? @map("secure_url")
+
+  format   String?
+  mimeType String? @map("mime_type")
+
+  /// Prevents CLS — the renderer always knows the aspect ratio before load.
+  width  Int?
+  height Int?
+  bytes  BigInt?
+
+  /// Placeholder before load.
+  blurhash      String?
+  dominantColor String? @map("dominant_color") @db.Char(7)
+
+  /// 0–1; art-directed cropping across breakpoints.
+  focalPointX Decimal? @map("focal_point_x") @db.Decimal(4, 3)
+  focalPointY Decimal? @map("focal_point_y") @db.Decimal(4, 3)
+
+  folderPath String?  @map("folder_path")
+  tags       String[] @default([])
+
+  /// Deduplication at upload.
+  checksumSha256 String? @map("checksum_sha256")
+
+  uploadedBy String? @map("uploaded_by") @db.Uuid
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  translations MediaTranslation[]
+  productMedia ProductMedia[]
+
+  @@index([tenantId, provider])
+  @@index([tenantId, checksumSha256])
+  @@map("media_asset")
+}
+
+/// Alt text is locale-specific and AI-drafted, human-approved (UX §7.2).
+model MediaTranslation {
+  mediaAssetId String @map("media_asset_id") @db.Uuid
+  locale       String
+
+  altText String? @map("alt_text")
+  caption String?
+
+  isMachineGenerated Boolean   @default(false) @map("is_machine_generated")
+  reviewedBy         String?   @map("reviewed_by") @db.Uuid
+  reviewedAt         DateTime? @map("reviewed_at") @db.Timestamptz(6)
+
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@id([mediaAssetId, locale])
+  @@map("media_translation")
+}
+
+/// §4.3. `role` sequences the gallery (product → scene → macro → installed →
+/// drawing) and lets Spec mode promote the technical drawing above the
+/// lifestyle shot. A partial unique index (in the constraints migration)
+/// enforces exactly one `primary` per product; `product.primary_media_id` is
+/// trigger-maintained from it.
+model ProductMedia {
+  productId    String           @map("product_id") @db.Uuid
+  mediaAssetId String           @map("media_asset_id") @db.Uuid
+  role         ProductMediaRole
+
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+
+  @@id([productId, mediaAssetId, role])
+  @@map("product_media")
+}
+
+/// §4.4. Private, access-controlled, lifecycle-managed — Supabase Storage,
+/// never Cloudinary. Retention by purpose: finder queries 90 days · visualiser
+/// sources 90 days · generated PDFs 1 year · ingestion sources retained for
+/// the life of the products they created · trade documents 7 years (legal).
+model Upload {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  visitorId String? @map("visitor_id") @db.Uuid
+  appUserId String? @map("app_user_id") @db.Uuid
+
+  purpose UploadPurpose
+
+  storageBucket String @map("storage_bucket")
+  storagePath   String @map("storage_path")
+
+  originalFilename String? @map("original_filename")
+  mimeType         String? @map("mime_type")
+  bytes            BigInt?
+  checksumSha256   String? @map("checksum_sha256")
+
+  /// Malware gate before any processing.
+  scanStatus UploadScanStatus @default(pending) @map("scan_status")
+
+  /// pg_cron deletes storage objects and rows past expiry. NULL means retained
+  /// indefinitely (ingestion sources — audit trail).
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  /// EXIF-stripped dimensions, page count. Non-queried, per the JSONB rules
+  /// in §5.5.
+  metadata Json @default("{}")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor Visitor? @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+  appUser AppUser? @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, purpose, expiresAt])
+  @@index([tenantId, visitorId])
+  @@index([tenantId, appUserId])
+  @@map("upload")
+}

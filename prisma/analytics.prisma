@@ -1,5 +1,205 @@
-// ANALYTICS — docs/03-database-design.md
+// ─────────────────────────────────────────────────────────────────────────────
+// Analytics storage — docs/03-database-design.md §10
 //
-// Placeholder. This domain's models land in Phase 1 with the full schema.
-// The file exists now so the split from §15.1 is established rather than
-// invented later, and so nobody has to guess where a model belongs.
+// The split with PostHog (§10.1): PostHog owns behavioural product analytics
+// (funnels, replay, flags, retention); Postgres owns commerce-critical events
+// that must join to catalog/quote data and must survive a vendor change. If a
+// report needs a SQL join to product or quote_request, it lives here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// §10.2 specifies "~40 values" for event_type but names only about a dozen
+/// as examples ("…"). Flagging per CLAUDE.md rule 5 rather than inventing a
+/// full silent list: the named examples are included verbatim, rounded out
+/// with the obvious companion events the named ones imply (an add needs a
+/// remove, a click needs an impression, etc.) to keep the vocabulary usable
+/// without guessing at ~25 unnamed values.
+enum AnalyticsEventType {
+  product_view
+  product_click
+  filter_apply
+  filter_clear
+  search
+  search_no_results
+  sort_change
+  finder_upload
+  finder_result_view
+  finder_result_click
+  assistant_session_start
+  assistant_message
+  assistant_recommendation_click
+  wishlist_add
+  wishlist_remove
+  basket_add
+  basket_remove
+  zone_add
+  zone_remove
+  quote_submit
+  quote_view
+  sample_request
+  sample_ship
+  booking_request
+  booking_confirm
+  project_create
+  project_item_add
+  share_project
+  project_comment
+  stock_alert_create
+  stock_alert_notify
+  showroom_locator_view
+  page_view
+  locale_switch
+  currency_switch
+  trade_account_apply
+  auth_signup
+  auth_login
+
+  @@map("analytics_event_type")
+}
+
+/// See enum doc comment above — same gap in §10.2, values chosen to match
+/// what analytics_event.entity_id can plausibly reference.
+enum AnalyticsEntityType {
+  product
+  category
+  brand
+  collection
+  quote_request
+  sample_request
+  project
+  ai_conversation
+  finder_session
+  showroom_booking
+
+  @@map("analytics_entity_type")
+}
+
+/// §10.2. PK (id, occurred_at), RANGE-partitioned monthly on occurred_at.
+model AnalyticsEvent {
+  id        BigInt  @default(autoincrement())
+  tenantId  String  @map("tenant_id") @db.Uuid
+  visitorId String? @map("visitor_id") @db.Uuid
+  appUserId String? @map("app_user_id") @db.Uuid
+  sessionId String? @map("session_id") @db.Uuid
+
+  eventType AnalyticsEventType @map("event_type")
+
+  entityType AnalyticsEntityType? @map("entity_type")
+  entityId   String?              @map("entity_id") @db.Uuid
+
+  properties Json?
+
+  locale         String?
+  countryCode    String? @map("country_code") @db.Char(2)
+  deviceType     String? @map("device_type")
+  referrerDomain String? @map("referrer_domain")
+  utm            Json?
+
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(6)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor Visitor? @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+  appUser AppUser? @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+
+  @@id([id, occurredAt])
+  @@index([tenantId, eventType, occurredAt])
+  @@index([tenantId, visitorId, occurredAt])
+  @@index([tenantId, entityType, entityId, occurredAt])
+  @@map("analytics_event")
+}
+
+/// §10.3. Rollups refreshed by pg_cron at 03:00 tenant-local, idempotent
+/// (upsert on the composite key), replayable from raw events until those
+/// partitions are dropped. pg_cron scheduling itself is Phase 9 — these
+/// tables exist now; nothing populates them yet.
+model DailyProductStat {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  date      DateTime @db.Date
+
+  views             Int      @default(0)
+  uniqueVisitors    Int      @default(0) @map("unique_visitors")
+  basketAdds        Int      @default(0) @map("basket_adds")
+  quoteInclusions   Int      @default(0) @map("quote_inclusions")
+  finderAppearances Int      @default(0) @map("finder_appearances")
+  finderClicks      Int      @default(0) @map("finder_clicks")
+  saves             Int      @default(0)
+  conversionRate    Decimal? @map("conversion_rate") @db.Decimal(6, 5)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, productId, date])
+  @@map("daily_product_stat")
+}
+
+/// The zero-result report is the single most commercially useful thing in
+/// this domain — it tells the business exactly what customers want that it
+/// doesn't stock.
+model DailySearchStat {
+  tenantId        String   @map("tenant_id") @db.Uuid
+  date            DateTime @db.Date
+  normalizedQuery String   @map("normalized_query")
+
+  count        Int     @default(0)
+  resultCount  Int     @default(0) @map("result_count")
+  clickThrough Int     @default(0) @map("click_through")
+  isZeroResult Boolean @default(false) @map("is_zero_result")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([tenantId, date, normalizedQuery])
+  @@map("daily_search_stat")
+}
+
+/// Same purpose as daily_search_stat, different angle: which filter
+/// *combinations* return nothing.
+model DailyFilterStat {
+  tenantId        String   @map("tenant_id") @db.Uuid
+  date            DateTime @db.Date
+  filterSignature String   @map("filter_signature")
+
+  applications    Int @default(0)
+  resultCounts    Int @default(0) @map("result_counts")
+  zeroResultCount Int @default(0) @map("zero_result_count")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([tenantId, date, filterSignature])
+  @@map("daily_filter_stat")
+}
+
+model DailyAiStat {
+  tenantId String    @map("tenant_id") @db.Uuid
+  date     DateTime  @db.Date
+  feature  AiFeature
+
+  calls                Int      @default(0)
+  costUsd              Decimal  @default(0) @map("cost_usd") @db.Decimal(10, 4)
+  meanLatencyMs        Int?     @map("mean_latency_ms")
+  errorRate            Decimal? @map("error_rate") @db.Decimal(5, 4)
+  cacheHitRate         Decimal? @map("cache_hit_rate") @db.Decimal(5, 4)
+  meanConfidence       Decimal? @map("mean_confidence") @db.Decimal(4, 3)
+  positiveFeedbackRate Decimal? @map("positive_feedback_rate") @db.Decimal(5, 4)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([tenantId, date, feature])
+  @@map("daily_ai_stat")
+}
+
+model DailyQuoteStat {
+  tenantId String      @map("tenant_id") @db.Uuid
+  date     DateTime    @db.Date
+  source   QuoteSource
+
+  submitted         Int      @default(0)
+  value             Decimal  @default(0) @db.Decimal(14, 4)
+  won               Int      @default(0)
+  lost              Int      @default(0)
+  meanResponseHours Decimal? @map("mean_response_hours") @db.Decimal(8, 2)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([tenantId, date, source])
+  @@map("daily_quote_stat")
+}

@@ -1,5 +1,285 @@
-// ENGAGEMENT — docs/03-database-design.md
-//
-// Placeholder. This domain's models land in Phase 1 with the full schema.
-// The file exists now so the split from §15.1 is established rather than
-// invented later, and so nobody has to guess where a model belongs.
+// ─────────────────────────────────────────────────────────────────────────────
+// Engagement: wishlist, recently viewed, projects — docs/03-database-design.md §8
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ProductViewSource {
+  catalog
+  search
+  finder
+  assistant
+  related
+  direct
+  collection
+
+  @@map("product_view_source")
+}
+
+enum ProjectStatus {
+  draft
+  active
+  presented
+  approved
+  completed
+  archived
+
+  @@map("project_status")
+}
+
+enum ProjectItemRole {
+  floor
+  wall
+  splashback
+  trim
+  feature
+  alternative
+
+  @@map("project_item_role")
+}
+
+enum ProjectSharePermission {
+  view
+  comment
+
+  @@map("project_share_permission")
+}
+
+enum StockAlertChannel {
+  email
+  whatsapp
+  both
+
+  @@map("stock_alert_channel")
+}
+
+enum StockAlertStatus {
+  active
+  notified
+  expired
+  cancelled
+
+  @@map("stock_alert_status")
+}
+
+/// §8.1. Keyed on visitor, not user — that's what makes it work without an
+/// account. On login, rows are re-parented by the claim flow (§2.3).
+model SavedItem {
+  id        String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  visitorId String  @map("visitor_id") @db.Uuid
+  appUserId String? @map("app_user_id") @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+  /// Files a saved item into a project without leaving the wishlist.
+  projectId String? @map("project_id") @db.Uuid
+
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor Visitor  @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  appUser AppUser? @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([visitorId, productId])
+  @@index([tenantId, visitorId])
+  @@map("saved_item")
+}
+
+/// §8.2. A hybrid design: Redis is the primary store for the "recently
+/// viewed" strip (a capped list per visitor, never touches Postgres for
+/// reads). This table is the durable record for logged-in users and
+/// analytics, written asynchronously from the analytics event stream — not
+/// synchronously on every page view. RANGE-partitioned by viewed_at (§13.2),
+/// retained 13 months (§13.3).
+///
+/// PK is (id, viewed_at), not id alone: Postgres requires every unique
+/// constraint on a partitioned table to include the partition key.
+model ProductView {
+  id        BigInt  @default(autoincrement())
+  tenantId  String  @map("tenant_id") @db.Uuid
+  visitorId String? @map("visitor_id") @db.Uuid
+  appUserId String? @map("app_user_id") @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+
+  viewedAt       DateTime          @map("viewed_at") @db.Timestamptz(6)
+  viewDurationMs Int?              @map("view_duration_ms")
+  source         ProductViewSource
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor Visitor? @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+  appUser AppUser? @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([id, viewedAt])
+  @@index([tenantId, visitorId, viewedAt])
+  @@index([tenantId, productId, viewedAt])
+  @@map("product_view")
+}
+
+/// §8.3. Tables designed now, promoted to a first-class feature in v1.1. A
+/// project converts to a quote_request by copying zones/items with
+/// snapshots — project_zone and quote_request_zone are structurally
+/// identical by design so that promotion is a plain insert-select, not a
+/// translation layer.
+model Project {
+  id        String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  visitorId String  @map("visitor_id") @db.Uuid
+  appUserId String? @map("app_user_id") @db.Uuid
+
+  name         String
+  slug         String        @db.Citext
+  clientName   String?       @map("client_name")
+  projectType  ProjectType?  @map("project_type")
+  locationCity String?       @map("location_city")
+  status       ProjectStatus @default(draft)
+  coverMediaId String?       @map("cover_media_id") @db.Uuid
+  /// Auto-extracted colours, non-queried per the JSONB rules in §5.5.
+  palette      Json?
+  totalAreaM2  Decimal?      @map("total_area_m2") @db.Decimal(12, 4)
+  notes        String?
+
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor Visitor  @relation(fields: [visitorId], references: [id], onDelete: Restrict)
+  appUser AppUser? @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+
+  savedItems       SavedItem[]
+  zones            ProjectZone[]
+  items            ProjectItem[]
+  shares           ProjectShare[]
+  comments         ProjectComment[]
+  showroomBookings ShowroomBooking[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, visitorId])
+  @@map("project")
+}
+
+/// Mirrors quote_request_zone by design — see the model doc comment on
+/// Project.
+model ProjectZone {
+  id        String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+
+  name            String
+  spaceType       SpaceType? @map("space_type")
+  areaM2          Decimal    @map("area_m2") @db.Decimal(12, 4)
+  layoutPatternId String?    @map("layout_pattern_id") @db.Uuid
+  wastagePct      Decimal    @map("wastage_pct") @db.Decimal(5, 2)
+  sortOrder       Int        @default(0) @map("sort_order")
+
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  layoutPattern LayoutPattern? @relation(fields: [layoutPatternId], references: [id], onDelete: SetNull)
+  items         ProjectItem[]
+
+  @@index([projectId])
+  @@map("project_zone")
+}
+
+model ProjectItem {
+  id        String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  projectId String  @map("project_id") @db.Uuid
+  zoneId    String? @map("zone_id") @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+
+  quantityM2 Decimal         @map("quantity_m2") @db.Decimal(12, 4)
+  role       ProjectItemRole
+  sortOrder  Int             @default(0) @map("sort_order")
+  note       String?
+  /// Alternatives sit alongside the chosen tile.
+  isSelected Boolean         @default(true) @map("is_selected")
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  zone    ProjectZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  product Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  comments ProjectComment[]
+
+  @@index([projectId])
+  @@index([zoneId])
+  @@map("project_item")
+}
+
+/// Public read is granted by token through a SECURITY DEFINER function (see
+/// the constraints migration), not by opening RLS on project — RLS on
+/// project stays owner/staff-only regardless of shares.
+model ProjectShare {
+  id        String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+
+  token        String                 @unique
+  permission   ProjectSharePermission @default(view)
+  expiresAt    DateTime?              @map("expires_at") @db.Timestamptz(6)
+  passwordHash String?                @map("password_hash")
+  viewCount    Int                    @default(0) @map("view_count")
+  lastViewedAt DateTime?              @map("last_viewed_at") @db.Timestamptz(6)
+  revokedAt    DateTime?              @map("revoked_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  comments ProjectComment[]
+
+  @@index([projectId])
+  @@map("project_share")
+}
+
+/// Clients comment without an account, via the share token.
+model ProjectComment {
+  id            String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  projectId     String  @map("project_id") @db.Uuid
+  projectItemId String? @map("project_item_id") @db.Uuid
+  shareId       String? @map("share_id") @db.Uuid
+
+  authorName String  @map("author_name")
+  appUserId  String? @map("app_user_id") @db.Uuid
+  body       String
+  isResolved Boolean @default(false) @map("is_resolved")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectItem ProjectItem?  @relation(fields: [projectItemId], references: [id], onDelete: Cascade)
+  share       ProjectShare? @relation(fields: [shareId], references: [id], onDelete: SetNull)
+  appUser     AppUser?      @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@map("project_comment")
+}
+
+/// §8.4. min_quantity_m2 matters: a contractor needing 340 m² doesn't want an
+/// alert when 12 m² arrives. A trigger on product_stock update (constraints
+/// migration) evaluates it before enqueuing a notification.
+model StockAlert {
+  id         String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  visitorId  String  @map("visitor_id") @db.Uuid
+  appUserId  String? @map("app_user_id") @db.Uuid
+  productId  String  @map("product_id") @db.Uuid
+  locationId String? @map("location_id") @db.Uuid
+
+  contactEmail  String?           @map("contact_email")
+  contactPhone  String?           @map("contact_phone")
+  channel       StockAlertChannel
+  minQuantityM2 Decimal           @map("min_quantity_m2") @db.Decimal(12, 4)
+
+  status     StockAlertStatus @default(active)
+  notifiedAt DateTime?        @map("notified_at") @db.Timestamptz(6)
+  expiresAt  DateTime?        @map("expires_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitor  Visitor   @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  appUser  AppUser?  @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  product  Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, productId, status])
+  @@index([tenantId, visitorId])
+  @@map("stock_alert")
+}

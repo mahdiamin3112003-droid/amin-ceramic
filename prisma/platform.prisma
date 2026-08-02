@@ -1,5 +1,386 @@
-// PLATFORM — docs/03-database-design.md
-//
-// Placeholder. This domain's models land in Phase 1 with the full schema.
-// The file exists now so the split from §15.1 is established rather than
-// invented later, and so nobody has to guess where a model belongs.
+// ─────────────────────────────────────────────────────────────────────────────
+// Platform: notifications, connectors, audit, settings — docs/03-database-design.md §11
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum NotificationChannel {
+  email
+  whatsapp
+  sms
+  in_app
+  push
+
+  @@map("notification_channel")
+}
+
+enum NotificationRecipientType {
+  user
+  visitor
+  contact
+  role
+
+  @@map("notification_recipient_type")
+}
+
+enum NotificationPriority {
+  low
+  normal
+  high
+  urgent
+
+  @@map("notification_priority")
+}
+
+enum NotificationStatus {
+  pending
+  queued
+  sent
+  delivered
+  failed
+  suppressed
+
+  @@map("notification_status")
+}
+
+enum ConnectorHealthStatus {
+  healthy
+  degraded
+  failing
+  unconfigured
+
+  @@map("connector_health_status")
+}
+
+enum OutboxEventStatus {
+  pending
+  processing
+  delivered
+  failed
+  dead
+
+  @@map("outbox_event_status")
+}
+
+enum ConnectorEventDirection {
+  outbound
+  inbound
+
+  @@map("connector_event_direction")
+}
+
+enum AuditActorType {
+  user
+  system
+  api_key
+  job
+
+  @@map("audit_actor_type")
+}
+
+enum AppSettingScope {
+  public
+  private
+
+  @@map("app_setting_scope")
+}
+
+/// §11.1.
+model NotificationTemplate {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// e.g. quote.submitted, stock.back_in_stock, booking.reminder, ingestion.review_ready.
+  key     String
+  channel NotificationChannel
+  locale  String
+
+  subject   String?
+  body      String
+  variables Json    @default("{}")
+  isActive  Boolean @default(true) @map("is_active")
+  version   Int     @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, key, channel, locale])
+  @@map("notification_template")
+}
+
+model Notification {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  recipientType  NotificationRecipientType @map("recipient_type")
+  recipientId    String?                   @map("recipient_id") @db.Uuid
+  recipientEmail String?                   @map("recipient_email")
+  recipientPhone String?                   @map("recipient_phone")
+
+  templateKey String @map("template_key")
+  data        Json   @default("{}")
+
+  priority NotificationPriority @default(normal)
+  status   NotificationStatus   @default(pending)
+
+  scheduledFor DateTime? @map("scheduled_for") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  deliveries NotificationDelivery[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, recipientType, recipientId])
+  @@map("notification")
+}
+
+/// One notification, many deliveries — the same "back in stock" event may go
+/// to both email and WhatsApp with independent outcomes. Collapsing these
+/// into one table makes per-channel deliverability unanswerable.
+///
+/// RANGE-partitioned monthly by createdAt (§13.2, per the approved Phase 1
+/// plan's partition list). PK is (id, createdAt), not id alone — same
+/// reason as every other partitioned table in this schema.
+model NotificationDelivery {
+  id             String @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  notificationId String @map("notification_id") @db.Uuid
+
+  channel           NotificationChannel
+  provider          String?
+  providerMessageId String?             @map("provider_message_id")
+  status            NotificationStatus
+  attempt           Int                 @default(1)
+  errorCode         String?             @map("error_code")
+
+  sentAt      DateTime? @map("sent_at") @db.Timestamptz(6)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+  openedAt    DateTime? @map("opened_at") @db.Timestamptz(6)
+  clickedAt   DateTime? @map("clicked_at") @db.Timestamptz(6)
+  failedAt    DateTime? @map("failed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@id([id, createdAt])
+  @@index([notificationId])
+  @@map("notification_delivery")
+}
+
+/// A global suppression list (NotificationSuppression) prevents sending to
+/// hard-bounced or complained addresses regardless of preferences — a legal
+/// and deliverability requirement.
+model NotificationPreference {
+  id        String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  appUserId String? @map("app_user_id") @db.Uuid
+  visitorId String? @map("visitor_id") @db.Uuid
+
+  category  String
+  channel   NotificationChannel
+  isEnabled Boolean             @default(true) @map("is_enabled")
+
+  unsubscribeToken String    @unique @map("unsubscribe_token")
+  suppressedUntil  DateTime? @map("suppressed_until") @db.Timestamptz(6)
+
+  appUser AppUser? @relation(fields: [appUserId], references: [id], onDelete: Cascade)
+  visitor Visitor? @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  // Uniqueness (appUserId, visitorId, category, channel) is a NULLS NOT
+  // DISTINCT index in the constraints migration — a plain @@unique would
+  // treat every row's unused owner column (always NULL) as distinct,
+  // allowing duplicate preference rows for the same owner.
+  @@map("notification_preference")
+}
+
+model NotificationSuppression {
+  id     String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  email  String?
+  phone  String?
+  reason String
+
+  addedAt DateTime @default(now()) @map("added_at") @db.Timestamptz(6)
+
+  @@map("notification_suppression")
+}
+
+/// §11.2. credentials_ref is a reference to a secret manager, never the
+/// secret itself.
+model ConnectorConfig {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// whatsapp, resend, cloudinary, stripe, erp, crm, pos.
+  connectorKey String  @map("connector_key")
+  name         String
+  isEnabled    Boolean @default(false) @map("is_enabled")
+
+  /// Non-secret configuration.
+  config           Json     @default("{}")
+  credentialsRef   String?  @map("credentials_ref")
+  capabilities     String[] @default([])
+  subscribedEvents String[] @default([]) @map("subscribed_events")
+
+  healthStatus      ConnectorHealthStatus @default(unconfigured) @map("health_status")
+  lastHealthCheckAt DateTime?             @map("last_health_check_at") @db.Timestamptz(6)
+  lastError         String?               @map("last_error")
+
+  tenant   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  eventLog ConnectorEventLog[]
+
+  @@unique([tenantId, connectorKey])
+  @@map("connector_config")
+}
+
+/// §11.2. The transactional outbox from Architecture §8.1: the row is written
+/// inside the same transaction as the business change. A quote is never
+/// submitted without its notification event, and no event is ever emitted
+/// for a transaction that rolled back.
+model OutboxEvent {
+  id       BigInt @default(autoincrement())
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// e.g. quote.submitted, product.published, stock.low.
+  eventType     String @map("event_type")
+  aggregateType String @map("aggregate_type")
+  aggregateId   String @map("aggregate_id") @db.Uuid
+  payload       Json
+
+  status      OutboxEventStatus @default(pending)
+  attempts    Int               @default(0) @db.SmallInt
+  /// Exponential backoff.
+  availableAt DateTime          @default(now()) @map("available_at") @db.Timestamptz(6)
+
+  lockedBy    String?   @map("locked_by")
+  lockedUntil DateTime? @map("locked_until") @db.Timestamptz(6)
+  lastError   String?   @map("last_error")
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+
+  tenant            Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  connectorEventLog ConnectorEventLog[]
+
+  @@id([id])
+  @@map("outbox_event")
+}
+
+/// Retained 90 days. Inbound rows carry idempotency_key with a unique index,
+/// so a webhook delivered twice is processed once.
+///
+/// RANGE-partitioned monthly by createdAt (§13.2, per the plan's partition
+/// list). PK is (id, createdAt), not id alone.
+model ConnectorEventLog {
+  id                String  @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  connectorConfigId String  @map("connector_config_id") @db.Uuid
+  outboxEventId     BigInt? @map("outbox_event_id")
+
+  direction       ConnectorEventDirection
+  status          String
+  requestSummary  Json?                   @map("request_summary")
+  responseSummary Json?                   @map("response_summary")
+  durationMs      Int?                    @map("duration_ms")
+  idempotencyKey  String?                 @map("idempotency_key")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  connectorConfig ConnectorConfig @relation(fields: [connectorConfigId], references: [id], onDelete: Cascade)
+  outboxEvent     OutboxEvent?    @relation(fields: [outboxEventId], references: [id], onDelete: SetNull)
+
+  @@id([id, createdAt])
+  @@index([connectorConfigId, createdAt])
+  @@map("connector_event_log")
+}
+
+/// §11.3. PK (id, occurred_at), RANGE-partitioned monthly, retained 7 years.
+/// Append-only is enforced by the database, not by convention: RLS grants
+/// INSERT and SELECT only, with no UPDATE/DELETE policy for either — not even
+/// the tenant owner can rewrite history. changed_fields is a generated
+/// summary so "who changed prices this week" doesn't diff JSONB across
+/// millions of rows.
+model AuditLog {
+  id       BigInt @default(autoincrement())
+  tenantId String @map("tenant_id") @db.Uuid
+
+  actorType  AuditActorType @map("actor_type")
+  /// Denormalised — the actor may later be deleted.
+  actorId    String?        @map("actor_id") @db.Uuid
+  actorEmail String?        @map("actor_email")
+
+  /// e.g. product.publish, inventory.adjust, role.grant, price.update.
+  action String
+
+  entityType  String? @map("entity_type")
+  entityId    String? @map("entity_id") @db.Uuid
+  entityLabel String? @map("entity_label")
+
+  before        Json?
+  after         Json?
+  changedFields String[] @default([]) @map("changed_fields")
+
+  reason    String?
+  ipAddress String? @map("ip_address") @db.Inet
+  userAgent String? @map("user_agent")
+  requestId String? @map("request_id")
+
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([id, occurredAt])
+  @@index([tenantId, entityType, entityId, occurredAt])
+  @@index([tenantId, actorId, occurredAt])
+  @@map("audit_log")
+}
+
+/// §11.4. Holds low-stock thresholds, default wastage, sample limits, quote
+/// expiry days, AI monthly budget, feature toggles per tenant.
+model AppSetting {
+  tenantId String @map("tenant_id") @db.Uuid
+  key      String
+
+  value       Json
+  dataType    String          @map("data_type")
+  scope       AppSettingScope @default(private)
+  description String?
+  updatedBy   String?         @map("updated_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([tenantId, key])
+  @@map("app_setting")
+}
+
+/// Lets a feature (e.g. the Room Visualizer) ship dark and enable per tenant.
+///
+/// id is a synthetic PK, not (key, tenantId): tenant_id NULL means "global",
+/// and a composite PK cannot contain NULL. Uniqueness including the NULL
+/// case is a NULLS NOT DISTINCT index in the constraints migration, the same
+/// pattern as product_stock's roll-up row.
+model FeatureFlag {
+  id       String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  key      String
+  tenantId String? @map("tenant_id") @db.Uuid
+
+  isEnabled      Boolean @default(false) @map("is_enabled")
+  rolloutPercent Int     @default(0) @map("rollout_percent")
+  conditions     Json?
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("feature_flag")
+}
+
+/// Needed at launch for the existing site's URLs, and thereafter whenever a
+/// product slug changes — a slug change without a redirect silently discards
+/// accumulated SEO value.
+model UrlRedirect {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  fromPath   String  @map("from_path")
+  toPath     String  @map("to_path")
+  statusCode Int     @default(301) @map("status_code")
+  hitCount   Int     @default(0) @map("hit_count")
+  isActive   Boolean @default(true) @map("is_active")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, fromPath])
+  @@map("url_redirect")
+}

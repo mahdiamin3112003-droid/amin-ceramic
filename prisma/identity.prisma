@@ -83,6 +83,72 @@ model Tenant {
   roles         Role[]
   tradeAccounts TradeAccount[]
 
+  // Catalog domain (prisma/catalog.prisma) — back-relations required by
+  // Prisma even though the owning models live in a different file.
+  brands            Brand[]
+  collections       Collection[]
+  categories        Category[]
+  products          Product[]
+  materials         Material[]
+  finishes          Finish[]
+  surfaceLooks      SurfaceLook[]
+  colorFamilies     ColorFamily[]
+  applications      Application[]
+  layoutPatterns    LayoutPattern[]
+  productAttributes ProductAttribute[]
+  priceTiers        PriceTier[]
+  productPrices     ProductPrice[]
+
+  // Media domain (prisma/media.prisma)
+  mediaAssets MediaAsset[]
+  uploads     Upload[]
+
+  // Inventory domain (prisma/inventory.prisma)
+  locations          Location[]
+  stockLots          StockLot[]
+  inventoryMovements InventoryMovement[]
+  productStocks      ProductStock[]
+
+  // Commerce domain (prisma/commerce.prisma)
+  quoteRequests    QuoteRequest[]
+  sampleRequests   SampleRequest[]
+  showroomBookings ShowroomBooking[]
+
+  // Engagement domain (prisma/engagement.prisma)
+  savedItems   SavedItem[]
+  productViews ProductView[]
+  projects     Project[]
+  stockAlerts  StockAlert[]
+
+  // AI domain (prisma/ai.prisma)
+  productEmbeddings ProductEmbedding[]
+  finderSessions    FinderSession[]
+  aiConversations   AiConversation[]
+  aiInteractions    AiInteraction[]
+  aiFeedback        AiFeedback[]
+
+  // Ingestion domain (prisma/ingestion.prisma)
+  ingestionJobs    IngestionJob[]
+  supplierMappings SupplierMapping[]
+
+  // Analytics domain (prisma/analytics.prisma)
+  analyticsEvents   AnalyticsEvent[]
+  dailyProductStats DailyProductStat[]
+  dailySearchStats  DailySearchStat[]
+  dailyFilterStats  DailyFilterStat[]
+  dailyAiStats      DailyAiStat[]
+  dailyQuoteStats   DailyQuoteStat[]
+
+  // Platform domain (prisma/platform.prisma)
+  notificationTemplates NotificationTemplate[]
+  notifications         Notification[]
+  connectorConfigs      ConnectorConfig[]
+  outboxEvents          OutboxEvent[]
+  auditLogs             AuditLog[]
+  appSettings           AppSetting[]
+  featureFlags          FeatureFlag[]
+  urlRedirects          UrlRedirect[]
+
   @@map("tenant")
 }
 
@@ -124,10 +190,23 @@ model AppUser {
   /// address can be reused after deletion without a collision.
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  visitors     Visitor[]
-  userRoles    UserRole[]
-  tradeAccount TradeAccount?
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitors                Visitor[]
+  userRoles               UserRole[]
+  tradeAccount            TradeAccount?
+  uploads                 Upload[]
+  quoteRequests           QuoteRequest[]
+  sampleRequests          SampleRequest[]
+  showroomBookings        ShowroomBooking[]
+  savedItems              SavedItem[]
+  productViews            ProductView[]
+  projects                Project[]
+  projectComments         ProjectComment[]
+  stockAlerts             StockAlert[]
+  finderSessions          FinderSession[]
+  aiConversations         AiConversation[]
+  analyticsEvents         AnalyticsEvent[]
+  notificationPreferences NotificationPreference[]
 
   // Tenant-scoped uniqueness, not global — §19.2.
   // Declared here so `prisma migrate diff` stays clean; the partial WHERE
@@ -167,10 +246,23 @@ model Visitor {
   /// never deleted — analytics history depends on it (§2.3).
   mergedIntoVisitorId String? @map("merged_into_visitor_id") @db.Uuid
 
-  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  appUser    AppUser?  @relation(fields: [appUserId], references: [id], onDelete: SetNull)
-  mergedInto Visitor?  @relation("VisitorMerge", fields: [mergedIntoVisitorId], references: [id], onDelete: SetNull)
-  mergedFrom Visitor[] @relation("VisitorMerge")
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  appUser                 AppUser?                 @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  mergedInto              Visitor?                 @relation("VisitorMerge", fields: [mergedIntoVisitorId], references: [id], onDelete: SetNull)
+  mergedFrom              Visitor[]                @relation("VisitorMerge")
+  uploads                 Upload[]
+  quoteRequests           QuoteRequest[]
+  sampleRequests          SampleRequest[]
+  showroomBookings        ShowroomBooking[]
+  savedItems              SavedItem[]
+  productViews            ProductView[]
+  projects                Project[]
+  stockAlerts             StockAlert[]
+  finderSessions          FinderSession[]
+  aiConversations         AiConversation[]
+  aiFeedback              AiFeedback[]
+  analyticsEvents         AnalyticsEvent[]
+  notificationPreferences NotificationPreference[]
 
   @@index([tenantId, lastSeenAt])
   @@index([tenantId, appUserId])
@@ -267,12 +359,6 @@ model UserRole {
 
 /// §2.6. Trade pricing resolves as: trade_account.price_tier_id → product_price
 /// for that tier → the product's base (public) tier as fallback.
-///
-/// `priceTierId` forward-references `price_tier`, which is defined in
-/// catalog.prisma — not yet modelled here as a Prisma `@relation` because that
-/// model doesn't exist until the catalog migration lands. The scalar column and
-/// its database-level FK constraint are added together in that migration, once
-/// PriceTier exists to reference. See prisma/catalog.prisma.
 model TradeAccount {
   id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid
@@ -284,7 +370,6 @@ model TradeAccount {
   registrationNo String?   @map("registration_no")
   tradeType      TradeType @map("trade_type")
 
-  /// Set once catalog.prisma's PriceTier model exists; see the model doc comment.
   priceTierId String? @map("price_tier_id") @db.Uuid
 
   creditLimit      Decimal? @map("credit_limit") @db.Decimal(12, 4)
@@ -302,8 +387,9 @@ model TradeAccount {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Restrict)
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  appUser   AppUser    @relation(fields: [appUserId], references: [id], onDelete: Restrict)
+  priceTier PriceTier? @relation(fields: [priceTierId], references: [id], onDelete: SetNull)
 
   @@unique([appUserId])
   @@index([tenantId, status])

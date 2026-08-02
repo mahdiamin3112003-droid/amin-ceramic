@@ -22,6 +22,18 @@ export default defineConfig({
       provider: "v8",
       include: ["src/domain/**", "src/lib/**"],
       reporter: ["text", "lcov"],
+      // The quantity calculator is the roadmap's named 100%-coverage target
+      // (docs/01-architecture.md §10) — enforced here rather than trusted to
+      // review, since a coverage regression on this file is a silent
+      // correctness risk (it's what every quote's box count depends on).
+      thresholds: {
+        "src/domain/quantity/calculator.ts": {
+          statements: 100,
+          branches: 100,
+          functions: 100,
+          lines: 100,
+        },
+      },
     },
   },
 });

@@ -201,4 +201,15 @@ export default tseslint.config(
       "@typescript-eslint/no-non-null-assertion": "off",
     },
   },
+
+  // Domain purity (§5.3) governs the domain code itself, not the test
+  // harness that exercises it — a *.test.ts file co-located with domain
+  // code legitimately imports vitest, the same way a .stories.tsx file
+  // legitimately imports Storybook regardless of which layer it documents.
+  {
+    files: ["**/*.{test,spec}.{ts,tsx}"],
+    rules: {
+      "boundaries/external": "off",
+    },
+  },
 );

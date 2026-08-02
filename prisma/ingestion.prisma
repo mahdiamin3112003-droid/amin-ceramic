@@ -1,5 +1,239 @@
-// INGESTION — docs/03-database-design.md
-//
-// Placeholder. This domain's models land in Phase 1 with the full schema.
-// The file exists now so the split from §15.1 is established rather than
-// invented later, and so nobody has to guess where a model belongs.
+// ─────────────────────────────────────────────────────────────────────────────
+// Ingestion pipeline — docs/03-database-design.md §9.5
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum IngestionJobType {
+  pdf_catalog
+  spreadsheet
+  image_batch
+  url_scrape
+
+  @@map("ingestion_job_type")
+}
+
+enum IngestionJobStatus {
+  queued
+  parsing
+  extracting
+  enriching
+  embedding
+  review_pending
+  partially_approved
+  completed
+  failed
+  cancelled
+
+  @@map("ingestion_job_status")
+}
+
+/// See file-level note style used elsewhere: §9.5 gives ingestion_document a
+/// bare "status" with no value list.
+enum IngestionDocumentStatus {
+  pending
+  parsed
+  failed
+
+  @@map("ingestion_document_status")
+}
+
+enum StagingProductStatus {
+  extracted
+  needs_review
+  approved
+  rejected
+  merged
+
+  @@map("staging_product_status")
+}
+
+/// §9.5. created_by/supplier_id (→brand) attribute the job; the count columns
+/// are the progress bar and the review queue's badges.
+model IngestionJob {
+  id        String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  createdBy String? @map("created_by") @db.Uuid
+
+  jobType    IngestionJobType   @map("job_type")
+  supplierId String?            @map("supplier_id") @db.Uuid
+  status     IngestionJobStatus @default(queued)
+
+  totalItems       Int? @map("total_items")
+  extractedCount   Int  @default(0) @map("extracted_count")
+  approvedCount    Int  @default(0) @map("approved_count")
+  rejectedCount    Int  @default(0) @map("rejected_count")
+  needsReviewCount Int  @default(0) @map("needs_review_count")
+
+  totalCostUsd Decimal @default(0) @map("total_cost_usd") @db.Decimal(10, 6)
+  errorMessage String? @map("error_message")
+  inngestRunId String? @map("inngest_run_id")
+
+  startedAt   DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  supplier Brand? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  documents       IngestionDocument[]
+  stagingProducts StagingProduct[]
+
+  @@index([tenantId, status])
+  @@map("ingestion_job")
+}
+
+/// One job may include several files.
+model IngestionDocument {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  jobId    String @map("job_id") @db.Uuid
+  uploadId String @map("upload_id") @db.Uuid
+
+  pageCount    Int?                    @map("page_count")
+  /// Structural layout from the parse step, non-queried per §5.5's JSONB rules.
+  parsedLayout Json?                   @map("parsed_layout")
+  status       IngestionDocumentStatus @default(pending)
+
+  job     IngestionJob      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  regions IngestionRegion[]
+
+  @@index([jobId])
+  @@map("ingestion_document")
+}
+
+/// This is what powers the side-by-side review screen: the exact PDF region
+/// that produced each extracted field, highlighted as the reviewer moves
+/// through fields. Without stored bounding boxes the review UI is guesswork.
+model IngestionRegion {
+  id         String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  documentId String @map("document_id") @db.Uuid
+
+  pageNumber Int                       @map("page_number")
+  /// [x, y, width, height] — Prisma has no fixed-length array type; modelled
+  /// Unsupported, same pattern as product.color_lab.
+  bbox       Unsupported("numeric[]")? @map("bbox")
+
+  regionImageUploadId String? @map("region_image_upload_id") @db.Uuid
+  stagingProductId    String? @map("staging_product_id") @db.Uuid
+
+  document       IngestionDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  stagingProduct StagingProduct?   @relation(fields: [stagingProductId], references: [id], onDelete: SetNull)
+
+  stagingFields StagingField[]
+
+  @@index([documentId, pageNumber])
+  @@map("ingestion_region")
+}
+
+/// §9.5. Mirrors product's shape (its own scalar/FK columns — translated text
+/// lives in staging_field via field_key, same as product_translation does for
+/// product) but every column nullable and no constraints: extraction is
+/// allowed to be wrong, incomplete, or reference nothing yet. Promotion to a
+/// real `product` row is what applies product's actual constraints for the
+/// first time.
+model StagingProduct {
+  id    String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  jobId String @map("job_id") @db.Uuid
+
+  sku         String?
+  supplierSku String? @map("supplier_sku")
+  ean         String?
+  gtin        String?
+
+  brandId      String? @map("brand_id") @db.Uuid
+  collectionId String? @map("collection_id") @db.Uuid
+  categoryId   String? @map("category_id") @db.Uuid
+
+  widthMm     Int?     @map("width_mm")
+  heightMm    Int?     @map("height_mm")
+  thicknessMm Decimal? @map("thickness_mm") @db.Decimal(5, 2)
+
+  materialId    String? @map("material_id") @db.Uuid
+  finishId      String? @map("finish_id") @db.Uuid
+  surfaceLookId String? @map("surface_look_id") @db.Uuid
+  colorFamilyId String? @map("color_family_id") @db.Uuid
+
+  colorHex String? @map("color_hex")
+
+  shadeVariation     ShadeVariation? @map("shade_variation")
+  slipRating         SlipRating?     @map("slip_rating")
+  peiClass           Int?            @map("pei_class")
+  waterAbsorptionPct Decimal?        @map("water_absorption_pct") @db.Decimal(5, 3)
+  isFrostResistant   Boolean?        @map("is_frost_resistant")
+  isIndoor           Boolean?        @map("is_indoor")
+  isOutdoor          Boolean?        @map("is_outdoor")
+
+  piecesPerBox   Int?     @map("pieces_per_box")
+  m2PerBox       Decimal? @map("m2_per_box") @db.Decimal(8, 4)
+  kgPerBox       Decimal? @map("kg_per_box") @db.Decimal(8, 3)
+  boxesPerPallet Int?     @map("boxes_per_pallet")
+
+  originCountry String? @map("origin_country")
+
+  status               StagingProductStatus @default(extracted)
+  overallConfidence    Decimal?             @map("overall_confidence") @db.Decimal(4, 3)
+  duplicateOfProductId String?              @map("duplicate_of_product_id") @db.Uuid
+  duplicateScore       Decimal?             @map("duplicate_score") @db.Decimal(4, 3)
+  promotedProductId    String?              @map("promoted_product_id") @db.Uuid
+  reviewedBy           String?              @map("reviewed_by") @db.Uuid
+  reviewedAt           DateTime?            @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason      String?              @map("rejection_reason")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  job     IngestionJob      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  regions IngestionRegion[]
+  fields  StagingField[]
+
+  @@index([jobId, status])
+  @@map("staging_product")
+}
+
+/// The design rule from the UX blueprint, enforced here: a field with
+/// confidence < 0.5 stores its raw_value but leaves normalized_value NULL, so
+/// the review UI renders an empty required field rather than a plausible
+/// wrong one (constraints migration). was_edited captures every human
+/// correction — a labelled dataset for tuning extraction prompts per
+/// supplier.
+model StagingField {
+  id               String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  stagingProductId String @map("staging_product_id") @db.Uuid
+
+  fieldKey        String   @map("field_key")
+  rawValue        Json?    @map("raw_value")
+  normalizedValue Json?    @map("normalized_value")
+  confidence      Decimal? @db.Decimal(4, 3)
+  sourceRegionId  String?  @map("source_region_id") @db.Uuid
+  wasEdited       Boolean  @default(false) @map("was_edited")
+  editedValue     Json?    @map("edited_value")
+  editedBy        String?  @map("edited_by") @db.Uuid
+
+  stagingProduct StagingProduct   @relation(fields: [stagingProductId], references: [id], onDelete: Cascade)
+  sourceRegion   IngestionRegion? @relation(fields: [sourceRegionId], references: [id], onDelete: SetNull)
+
+  @@unique([stagingProductId, fieldKey])
+  @@map("staging_field")
+}
+
+/// The second catalog from the same supplier is dramatically faster than the
+/// first because the column mapping is remembered — over a year this is the
+/// difference between a useful tool and a novelty.
+model SupplierMapping {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  brandId  String @map("brand_id") @db.Uuid
+
+  /// Header fingerprint.
+  documentSignature   String    @map("document_signature")
+  fieldMappings       Json      @map("field_mappings")
+  transformationRules Json?     @map("transformation_rules")
+  confidence          Decimal?  @db.Decimal(4, 3)
+  timesUsed           Int       @default(0) @map("times_used")
+  lastUsedAt          DateTime? @map("last_used_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  brand  Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, brandId, documentSignature])
+  @@map("supplier_mapping")
+}

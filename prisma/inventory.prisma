@@ -1,5 +1,311 @@
-// INVENTORY — docs/03-database-design.md
+// ─────────────────────────────────────────────────────────────────────────────
+// Inventory architecture — docs/03-database-design.md §6
 //
-// Placeholder. This domain's models land in Phase 1 with the full schema.
-// The file exists now so the split from §15.1 is established rather than
-// invented later, and so nobody has to guess where a model belongs.
+// Three layers, and the separation is the whole design: inventory_movement
+// (append-only ledger, source of truth) → stock_lot (current qty per
+// product × location × lot, trigger-maintained) → product_stock (denormalised
+// summary per product × location, trigger-maintained, plus a location_id =
+// NULL roll-up row per product for the catalog facet).
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum LocationType {
+  warehouse
+  showroom
+  hybrid
+
+  @@map("location_type")
+}
+
+enum StockLotStatus {
+  available
+  reserved
+  quarantine
+  depleted
+  written_off
+
+  @@map("stock_lot_status")
+}
+
+enum InventoryMovementType {
+  receipt
+  sale
+  reservation
+  release
+  transfer_out
+  transfer_in
+  adjustment
+  return
+  sample
+  damage
+  write_off
+  count_correction
+
+  @@map("inventory_movement_type")
+}
+
+enum InventoryReferenceType {
+  quote
+  order
+  sample_request
+  transfer
+  manual
+  import
+  stocktake
+
+  @@map("inventory_reference_type")
+}
+
+enum ProductStockStatus {
+  in_stock
+  low_stock
+  out_of_stock
+  on_order
+
+  @@map("product_stock_status")
+}
+
+enum ShowroomDisplayType {
+  panel
+  floor_area
+  sample_board
+  full_room
+
+  @@map("showroom_display_type")
+}
+
+/// §6.2. Warehouses and showrooms are the same entity with different
+/// capabilities — a Lebanese tile business typically has showrooms that also
+/// hold sellable stock.
+model Location {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  slug String @db.Citext
+  name String
+
+  locationType       LocationType @map("location_type")
+  /// A pure showroom holds display panels, not inventory.
+  holdsSellableStock Boolean      @default(false) @map("holds_sellable_stock")
+  isPublic           Boolean      @default(true) @map("is_public")
+
+  addressLine1 String? @map("address_line1")
+  addressLine2 String? @map("address_line2")
+  city         String?
+  region       String?
+  postalCode   String? @map("postal_code")
+  countryCode  String? @map("country_code") @db.Char(2)
+
+  /// Map + "nearest showroom".
+  latitude  Decimal? @db.Decimal(9, 6)
+  longitude Decimal? @db.Decimal(9, 6)
+
+  phone    String?
+  whatsapp String?
+  email    String?
+
+  /// Per-day, exceptions — display only, never queried.
+  openingHours Json?   @map("opening_hours")
+  timezone     String?
+
+  acceptsBookings       Boolean @default(false) @map("accepts_bookings")
+  bookingSlotMinutes    Int?    @map("booking_slot_minutes")
+  maxConcurrentBookings Int?    @map("max_concurrent_bookings")
+
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  translations     LocationTranslation[]
+  stockLots        StockLot[]
+  movements        InventoryMovement[]
+  productStocks    ProductStock[]
+  showroomDisplays ShowroomDisplay[]
+
+  // Commerce domain (prisma/commerce.prisma)
+  quoteRequests    QuoteRequest[]
+  sampleRequests   SampleRequest[]
+  showroomBookings ShowroomBooking[]
+
+  // Engagement domain (prisma/engagement.prisma)
+  stockAlerts StockAlert[]
+
+  @@index([tenantId, slug])
+  @@index([tenantId, isActive])
+  @@map("location")
+}
+
+model LocationTranslation {
+  locationId String @map("location_id") @db.Uuid
+  locale     String
+
+  name        String
+  description String?
+  directions  String?
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([locationId, locale])
+  @@map("location_translation")
+}
+
+/// §6.3. The unit of shade consistency — what makes the lot warning in UX §3.3
+/// possible. caliber and shade_code are kept separate from lot_number because
+/// manufacturers vary dimensions by up to 1mm within a production run and
+/// label these calibers; two tiles from the same lot but different calibers
+/// will not align.
+model StockLot {
+  id         String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  productId  String @map("product_id") @db.Uuid
+  locationId String @map("location_id") @db.Uuid
+
+  /// Manufacturer batch.
+  lotNumber String  @map("lot_number")
+  /// Dimensional sub-batch — a real tile attribute, distinct from shade.
+  caliber   String?
+  /// Manufacturer's shade designation within the lot.
+  shadeCode String? @map("shade_code")
+
+  quantityM2 Decimal @map("quantity_m2") @db.Decimal(12, 4)
+  /// Held against open quotes.
+  reservedM2 Decimal @default(0) @map("reserved_m2") @db.Decimal(12, 4)
+
+  /// GENERATED ALWAYS AS (quantity_m2 - reserved_m2) STORED — see the
+  /// constraints migration. Excluded from writes the same way other
+  /// generated columns are.
+  availableM2 Decimal? @map("available_m2") @db.Decimal(12, 4)
+
+  /// Derived but stored — warehouse staff count boxes, not m².
+  boxes Int?
+
+  receivedAt DateTime? @map("received_at") @db.Timestamptz(6)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  /// Margin reporting; never exposed publicly.
+  costPerM2    Decimal? @map("cost_per_m2") @db.Decimal(12, 4)
+  costCurrency String?  @map("cost_currency") @db.Char(3)
+
+  supplierInvoiceRef String? @map("supplier_invoice_ref")
+
+  status StockLotStatus @default(available)
+  notes  String?
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  movements         InventoryMovement[]
+  quoteRequestItems QuoteRequestItem[]
+
+  @@unique([tenantId, productId, locationId, lotNumber])
+  @@index([tenantId, productId, locationId, status])
+  @@map("stock_lot")
+}
+
+/// §6.4. Append-only. No UPDATE, no DELETE — enforced by RLS, not convention.
+/// Corrections are new rows (a count_correction movement referencing the
+/// original), never edits — the ledger is thus a complete, auditable history.
+/// PK is (id, occurred_at), not id alone: the table is RANGE-partitioned by
+/// occurred_at (§13.2), and Postgres requires every unique constraint on a
+/// partitioned table to include the partition key.
+model InventoryMovement {
+  id String @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+
+  tenantId   String @map("tenant_id") @db.Uuid
+  productId  String @map("product_id") @db.Uuid
+  locationId String @map("location_id") @db.Uuid
+  /// Every movement targets a specific lot — the ledger→lot→product_stock
+  /// derivation chain (§6.1) depends on it; a receipt creates its stock_lot
+  /// row first, then references it here.
+  stockLotId String @map("stock_lot_id") @db.Uuid
+
+  movementType InventoryMovementType @map("movement_type")
+
+  /// Signed: negative reduces.
+  quantityM2    Decimal @map("quantity_m2") @db.Decimal(12, 4)
+  quantityBoxes Int?    @map("quantity_boxes")
+
+  referenceType InventoryReferenceType? @map("reference_type")
+  /// Polymorphic; not FK-constrained by design (§6.5) — the alternative is
+  /// eight nullable FK columns growing with every new document type.
+  referenceId   String?                 @map("reference_id") @db.Uuid
+
+  /// Required for adjustment/damage/write_off — CHECK enforces it.
+  reason String?
+
+  performedBy String? @map("performed_by") @db.Uuid
+
+  /// May differ from created_at for backdated corrections.
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  stockLot StockLot @relation(fields: [stockLotId], references: [id], onDelete: Restrict)
+
+  @@id([id, occurredAt])
+  @@index([tenantId, productId, locationId, occurredAt])
+  @@index([tenantId, stockLotId])
+  @@index([tenantId, referenceType, referenceId])
+  @@map("inventory_movement")
+}
+
+/// §6.6. The denormalised facet. Plus a location_id = NULL roll-up row per
+/// product representing tenant-wide totals — that row is what the catalog's
+/// availability facet reads. largest_lot_m2 answers "can this customer's
+/// 340 m² order be filled from a single lot?" without scanning every lot on
+/// the catalog page.
+model ProductStock {
+  id         String  @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  productId  String  @map("product_id") @db.Uuid
+  /// NULL means the tenant-wide roll-up row for this product.
+  locationId String? @map("location_id") @db.Uuid
+
+  quantityM2  Decimal @default(0) @map("quantity_m2") @db.Decimal(12, 4)
+  reservedM2  Decimal @default(0) @map("reserved_m2") @db.Decimal(12, 4)
+  availableM2 Decimal @default(0) @map("available_m2") @db.Decimal(12, 4)
+
+  lotCount     Int      @default(0) @map("lot_count") @db.SmallInt
+  largestLotM2 Decimal? @map("largest_lot_m2") @db.Decimal(12, 4)
+
+  stockStatus ProductStockStatus @default(out_of_stock) @map("stock_status")
+  restockEta  DateTime?          @map("restock_eta") @db.Date
+
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  product  Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  location Location? @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  // The (tenantId, productId, locationId) uniqueness — including the
+  // location_id IS NULL roll-up row — is a NULLS NOT DISTINCT unique index,
+  // which Prisma cannot express; declared in the constraints migration.
+  @@index([tenantId, productId])
+  @@index([tenantId, locationId])
+  @@map("product_stock")
+}
+
+/// §6.8. Distinct from sellable stock and deliberately so — powers "See it in
+/// person at Rmeileh — Aisle 3" and lets the sales team answer "which
+/// showroom has this on display?" without walking the floor. Not stock, never
+/// decremented, never appears in availability calculations.
+model ShowroomDisplay {
+  locationId  String              @map("location_id") @db.Uuid
+  productId   String              @map("product_id") @db.Uuid
+  displayType ShowroomDisplayType @map("display_type")
+
+  positionNote       String? @map("position_note")
+  hasSampleAvailable Boolean @default(false) @map("has_sample_available")
+  isActive           Boolean @default(true) @map("is_active")
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([locationId, productId, displayType])
+  @@map("showroom_display")
+}
