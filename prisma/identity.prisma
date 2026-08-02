@@ -1,8 +1,7 @@
 // IDENTITY — docs/03-database-design.md §2
 //
-// Phase 0 defines only tenant, app_user and visitor. role, permission,
-// role_permission, user_role and trade_account (§2.4–2.6) land in Phase 1 with
-// the rest of the schema.
+// Phase 0 defined tenant, app_user and visitor. Phase 1 adds role, permission,
+// role_permission, user_role and trade_account (§2.4–2.6).
 //
 // The decision that shapes everything here (§0.2): every tenant-scoped table
 // carries tenant_id from day one, and every uniqueness constraint is
@@ -57,7 +56,7 @@ model Tenant {
 
   /// Future subdomain or path segment. citext so `Amin-Ceramic` and
   /// `amin-ceramic` cannot both be registered.
-  slug      String @unique @db.Citext
+  slug      String  @unique @db.Citext
   name      String
   legalName String? @map("legal_name")
 
@@ -79,8 +78,10 @@ model Tenant {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  appUsers AppUser[]
-  visitors Visitor[]
+  appUsers      AppUser[]
+  visitors      Visitor[]
+  roles         Role[]
+  tradeAccounts TradeAccount[]
 
   @@map("tenant")
 }
@@ -123,8 +124,10 @@ model AppUser {
   /// address can be reused after deletion without a collision.
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  visitors Visitor[]
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitors     Visitor[]
+  userRoles    UserRole[]
+  tradeAccount TradeAccount?
 
   // Tenant-scoped uniqueness, not global — §19.2.
   // Declared here so `prisma migrate diff` stays clean; the partial WHERE
@@ -172,4 +175,137 @@ model Visitor {
   @@index([tenantId, lastSeenAt])
   @@index([tenantId, appUserId])
   @@map("visitor")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Roles and permissions — §2.4–2.5
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TradeType {
+  architect
+  designer
+  contractor
+  developer
+  retailer
+
+  @@map("trade_type")
+}
+
+enum TradeAccountStatus {
+  pending
+  approved
+  rejected
+  suspended
+
+  @@map("trade_account_status")
+}
+
+/// A role bundles permissions and is assignable per tenant. The five system
+/// roles (owner/admin/editor/sales/viewer) are seeded per tenant with
+/// isSystem = true; a tenant may add custom roles alongside them (§2.4).
+model Role {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  key         String
+  name        String
+  description String?
+
+  /// System roles can't be deleted or renamed by a tenant admin.
+  isSystem Boolean @default(false) @map("is_system")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([tenantId, key])
+  @@map("role")
+}
+
+/// The permission vocabulary. Deliberately NOT tenant-scoped — "the vocabulary
+/// is the same everywhere" (§2.4). `key` is the primary key itself (product.create,
+/// inventory.adjust, …), not a generated uuid — there is nothing to generate an
+/// id for when the string itself is the stable identifier every role_permission
+/// row and every `app.has_permission()` policy call references.
+model Permission {
+  key String @id
+
+  rolePermissions RolePermission[]
+
+  @@map("permission")
+}
+
+/// (role_id, permission_key) — a role's permission set.
+model RolePermission {
+  roleId        String @map("role_id") @db.Uuid
+  permissionKey String @map("permission_key")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Restrict)
+
+  @@id([roleId, permissionKey])
+  @@map("role_permission")
+}
+
+/// (app_user_id, role_id) — a user may hold several roles; effective
+/// permissions are the union (§2.4).
+model UserRole {
+  appUserId String @map("app_user_id") @db.Uuid
+  roleId    String @map("role_id") @db.Uuid
+
+  grantedBy String?  @map("granted_by") @db.Uuid
+  grantedAt DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
+
+  appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([appUserId, roleId])
+  @@map("user_role")
+}
+
+/// §2.6. Trade pricing resolves as: trade_account.price_tier_id → product_price
+/// for that tier → the product's base (public) tier as fallback.
+///
+/// `priceTierId` forward-references `price_tier`, which is defined in
+/// catalog.prisma — not yet modelled here as a Prisma `@relation` because that
+/// model doesn't exist until the catalog migration lands. The scalar column and
+/// its database-level FK constraint are added together in that migration, once
+/// PriceTier exists to reference. See prisma/catalog.prisma.
+model TradeAccount {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  appUserId String @map("app_user_id") @db.Uuid
+
+  companyName    String    @map("company_name")
+  taxId          String?   @map("tax_id")
+  registrationNo String?   @map("registration_no")
+  tradeType      TradeType @map("trade_type")
+
+  /// Set once catalog.prisma's PriceTier model exists; see the model doc comment.
+  priceTierId String? @map("price_tier_id") @db.Uuid
+
+  creditLimit      Decimal? @map("credit_limit") @db.Decimal(12, 4)
+  paymentTermsDays Int?     @map("payment_terms_days")
+
+  status          TradeAccountStatus @default(pending)
+  approvedBy      String?            @map("approved_by") @db.Uuid
+  approvedAt      DateTime?          @map("approved_at") @db.Timestamptz(6)
+  rejectionReason String?            @map("rejection_reason")
+
+  /// References to `upload` rows for verification documents — non-queried,
+  /// per the JSONB rules in §5.5.
+  documents Json @default("[]")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  appUser AppUser @relation(fields: [appUserId], references: [id], onDelete: Restrict)
+
+  @@unique([appUserId])
+  @@index([tenantId, status])
+  @@map("trade_account")
 }
