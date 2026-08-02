@@ -1,4 +1,16 @@
+import path from "node:path";
+
 import { PrismaClient } from "@prisma/client";
+
+// Run directly by tsx, so it does not go through prisma.config.ts and gets no
+// environment loading for free. Same order Next.js uses.
+for (const file of [".env.local", ".env"]) {
+  try {
+    process.loadEnvFile(path.join(process.cwd(), file));
+  } catch {
+    // Absent is fine — CI supplies the variables directly.
+  }
+}
 
 /**
  * Seed — one tenant row.
@@ -19,7 +31,7 @@ const prisma = new PrismaClient();
 const TENANT = {
   slug: "amin-ceramic",
   name: "Amin Ceramic",
-  legalName: null,
+  legalName: "Amin Ceramic",
   defaultLocale: "en",
   supportedLocales: ["en", "ar"],
   defaultCurrency: "USD",
@@ -36,6 +48,7 @@ async function main() {
     // changed in production. Only the identifying fields are refreshed.
     update: {
       name: TENANT.name,
+      legalName: TENANT.legalName,
       supportedLocales: [...TENANT.supportedLocales],
     },
     create: {
