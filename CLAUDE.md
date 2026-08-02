@@ -69,14 +69,52 @@ tile is heavy. Exits are ~30% faster than entrances.
 
 ## Commands
 
-(Filled in during Phase 0 — keep this section updated as scripts are added.)
+Node 24 (`.nvmrc`), pnpm 10. Keep this section updated as scripts are added.
 
 ```
-pnpm dev          # dev server
-pnpm build        # production build
-pnpm typecheck    # tsc --noEmit
-pnpm lint         # eslint
-pnpm test         # vitest
-pnpm db:migrate   # prisma migrate dev
-pnpm db:studio    # prisma studio
+pnpm dev              # dev server, http://localhost:3000 (redirects to /en)
+pnpm build            # production build
+pnpm start            # serve the production build
+
+pnpm typecheck        # tsc --noEmit
+pnpm lint             # eslint + stylelint + prettier --check
+pnpm lint:es          #   eslint only
+pnpm lint:css         #   stylelint only
+pnpm lint:format      #   prettier --check only
+pnpm lint:fix         # autofix all three
+pnpm format           # prettier --write
+
+pnpm test             # vitest run
+pnpm test:watch       # vitest
+
+pnpm storybook        # design review surface, http://localhost:6006
+pnpm storybook:build  # static build, runs in CI
+
+pnpm db:migrate       # prisma migrate dev
+pnpm db:deploy        # prisma migrate deploy (CI / production)
+pnpm db:seed          # idempotent — safe to re-run
+pnpm db:studio        # prisma studio
+pnpm db:reset         # DESTRUCTIVE: drop, re-migrate, re-seed
+pnpm db:generate      # prisma generate
 ```
+
+## Where things are
+
+- **Design tokens** — `src/app/globals.css`. The only file in the repository
+  where a literal colour is allowed. `src/test/tokens.test.ts` asserts every
+  value and computes every contrast rule in `docs/02` §4.1 from the real hexes.
+- **House lint rules** — `tools/eslint/`. Four rules with no off-the-shelf
+  equivalent: `no-raw-color`, `no-physical-properties`, `no-cyan-text`,
+  `no-transition-colors`. The layer boundary is `eslint-plugin-boundaries` in
+  `eslint.config.mjs`.
+- **Decisions of record** — `docs/adr/`. Every place the implementation departs
+  from `docs/01`–`docs/04`, with the reasoning. Ten so far.
+- **Foundation demo route** — `src/app/[locale]/(marketing)/page.tsx`. Proves
+  tokens, fonts, locale switching, RTL, focus and the Prisma read. Replaced by
+  the real homepage in Phase 3.
+
+## Phase status
+
+Phase 0 (foundation) is complete apart from the Supabase and Vercel wiring,
+which is blocked on those accounts existing. Phase 1 is the data core — do not
+start it without being asked.

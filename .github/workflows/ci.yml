@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A superseded run tells you nothing. Cancel it and save the minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Phase 0's tests are pure — no database, no network. This exists so Prisma
+  # can generate a client and Next can build; nothing connects to it.
+  # Testcontainers-backed repository tests arrive in Phase 1
+  # (docs/01-architecture.md §8.5).
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/amin_ceramic
+  DIRECT_URL: postgresql://postgres:postgres@localhost:5432/amin_ceramic
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  verify:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      # docs/01-architecture.md §8.3: "No service-role key ever reaches the
+      # client bundle — enforced by a build-time check." A leaked service-role
+      # key bypasses every RLS policy in the system, so this fails the build
+      # rather than warning.
+      - name: Assert no server secrets in the client bundle
+        run: |
+          set -euo pipefail
+          leaked=0
+          for pattern in 'SUPABASE_SERVICE_ROLE_KEY' 'sb_secret_' 'service_role'; do
+            if grep -rIl --exclude-dir=. -e "$pattern" .next/static 2>/dev/null | head -1 | grep -q .; then
+              echo "::error::'$pattern' appears in the client bundle (.next/static)."
+              leaked=1
+            fi
+          done
+          # The DB connection string must never be shipped either.
+          if grep -rIlE 'postgres(ql)?://[^ "]+:[^ "]+@' .next/static 2>/dev/null | head -1 | grep -q .; then
+            echo "::error::A database connection string appears in the client bundle."
+            leaked=1
+          fi
+          if [ "$leaked" -ne 0 ]; then exit 1; fi
+          echo "Client bundle is clean."
+
+      - name: Build Storybook
+        run: pnpm storybook:build
+
+      - name: Upload Storybook
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-static
+          path: storybook-static
+          retention-days: 7

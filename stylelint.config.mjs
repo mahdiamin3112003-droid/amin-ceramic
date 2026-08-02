@@ -95,6 +95,15 @@ const config = {
     // stop iOS Safari inflating text after an orientation change.
     "property-no-vendor-prefix": [true, { ignoreProperties: ["text-size-adjust"] }],
 
+    // The focus ring is written as longhands on purpose. A shorthand containing
+    // a var() that is invalid at computed-value time discards the WHOLE
+    // declaration and falls back to currentColor — a white ring on a white page.
+    // Longhands fail independently. See docs/adr/0007-focus-ring.md.
+    "declaration-block-no-redundant-longhand-properties": [
+      true,
+      { ignoreShorthands: ["outline"] },
+    ],
+
     // Custom properties are the token vocabulary; the standard pattern rejects
     // the numeric suffixes we rely on (--color-navy-950, --text-display-xl).
     "custom-property-pattern": null,
