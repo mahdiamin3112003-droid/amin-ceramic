@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "incremental": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+
+    /* Non-negotiable per CLAUDE.md. Do not relax any of these. */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+
+    /* Additional safety. `exactOptionalPropertyTypes` is deliberately OFF —
+       see docs/adr/0004-typescript-strictness.md */
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.mts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next", "storybook-static"]
+}

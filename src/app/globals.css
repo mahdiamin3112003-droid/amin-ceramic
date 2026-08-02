@@ -1,0 +1,782 @@
+/* ==========================================================================
+   AMIN CERAMIC — DESIGN TOKENS
+   ==========================================================================
+
+   The single source of truth. Every colour, type step, spacing value, radius,
+   shadow and motion curve in the product is defined here exactly once and
+   consumed everywhere else as a token. No component ever writes a literal.
+
+   Source of record:
+     docs/02-ux-blueprint.md §4 (colour, type, spacing, grid, radius, elevation)
+     docs/02-ux-blueprint.md §5.1 (motion tokens)
+     docs/02-ux-blueprint.md §7.4 (the one focus treatment)
+     docs/01-architecture.md  §2.3 (palette extracted from the logo)
+
+   Enforcement:
+     - Tailwind's default palette and type scale are CLEARED below. `bg-red-500`
+       and `text-sm` do not exist in this project; only tokens do. That is
+       stronger than a lint rule because it fails at build time.
+     - Literal colour in .css  -> stylelint `color-no-hex` (this file excepted)
+     - Literal colour in .tsx  -> eslint `amin/no-raw-color`
+     - Physical direction      -> stylelint `property-disallowed-list`,
+                                  eslint `amin/no-physical-properties`
+     - cyan as a text colour   -> eslint `amin/no-cyan-text`
+     - Token values themselves -> src/test/tokens.test.ts (presence + contrast)
+
+   This file is the ONLY place in the repository where a hex value is allowed.
+   ========================================================================== */
+
+@import "tailwindcss";
+
+/* --------------------------------------------------------------------------
+   1. THEME
+   -------------------------------------------------------------------------- */
+
+@theme {
+  /* ------------------------------------------------------------------------
+     1.1 Colour — docs/02-ux-blueprint.md §4.1
+
+     Tailwind's stock palette is cleared first. If a colour is not on this list
+     it does not exist in this product.
+     ------------------------------------------------------------------------ */
+
+  --color-*: initial;
+
+  /* CSS-wide keywords Tailwind models as theme colours. */
+  --color-transparent: transparent;
+  --color-current: currentcolor;
+  --color-inherit: inherit;
+
+  /* Brand ramp — extracted from the logo, never invented. */
+  --color-navy-950: #0c1338;
+  --color-navy-900: #141f52;
+  --color-navy-800: #1a2660;
+  --color-navy-700: #1e2c6e; /* PRIMARY BRAND */
+  --color-navy-600: #2a3d8f;
+  --color-blue-500: #3560b4;
+  --color-blue-400: #4a79c9;
+
+  /* cyan-400 and lighter are SURFACE, STROKE, GLOW and MOTION colours.
+     Never a text colour on a light ground — 2.0:1 fails WCAG AA at any size.
+     On navy-700 or darker cyan-400 reaches 6.2:1 and is permitted there. */
+  --color-cyan-400: #5fc4e4;
+  --color-cyan-300: #8ad4ec;
+  --color-cyan-100: #cbe4f3;
+  --color-cyan-50: #ebf5fb;
+
+  /* Neutrals */
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-stone-50: #f6f7f9;
+  --color-stone-100: #edeff3;
+  --color-stone-300: #d8dce3;
+  --color-stone-500: #8a93a3;
+  --color-stone-600: #5b6472;
+  --color-stone-800: #2e3441;
+
+  /* Semantic — never the sole carrier of meaning (§4.1 rule 4). */
+  --color-success-600: #1b7a4b;
+  --color-success-50: #e8f5ee;
+  --color-warning-600: #a16207;
+  --color-warning-50: #fef6e7;
+  --color-danger-600: #b42318;
+  --color-danger-700: #9a1e15; /* destructive hover, §4.7 */
+  --color-danger-50: #fef0ef;
+  --color-info-600: #2a3d8f; /* reuses navy, not a new hue */
+  --color-info-50: #eef1f9;
+
+  /* Intent aliases. Named so that misuse reads wrong at the call site:
+     `text-surface-accent` is visibly nonsense, `text-cyan-400` less so. */
+  --color-surface-accent: var(--color-cyan-400);
+  --color-stroke-accent: var(--color-cyan-400);
+  --color-surface-accent-subtle: var(--color-cyan-50);
+
+  /* Role tokens. shadcn/Radix primitives consume these, which is how they
+     inherit our system instead of shipping their default palette. */
+  --color-background: var(--color-white);
+  --color-foreground: var(--color-navy-900);
+  --color-card: var(--color-white);
+  --color-card-foreground: var(--color-navy-900);
+  --color-popover: var(--color-white);
+  --color-popover-foreground: var(--color-navy-900);
+  --color-primary: var(--color-navy-700);
+  --color-primary-foreground: var(--color-white);
+  --color-secondary: var(--color-stone-50);
+  --color-secondary-foreground: var(--color-navy-700);
+  --color-muted: var(--color-stone-50);
+  --color-muted-foreground: var(--color-stone-600);
+  --color-accent: var(--color-cyan-50); /* a FILL, per the cyan rule */
+  --color-accent-foreground: var(--color-navy-700);
+  --color-destructive: var(--color-danger-600);
+  --color-destructive-foreground: var(--color-white);
+  --color-border: var(--color-stone-300);
+  --color-input: var(--color-stone-300);
+  --color-ring: var(--color-navy-700);
+
+  /* ------------------------------------------------------------------------
+     1.2 Typography — docs/02-ux-blueprint.md §4.2
+
+     Families resolve through next/font variables (see src/lib/fonts.ts).
+     The Arabic override in §3 re-points --font-display and --font-sans, so a
+     single block switches the whole system between scripts.
+     ------------------------------------------------------------------------ */
+
+  --font-display: var(--font-marcellus), "Times New Roman", serif;
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "Courier New", monospace;
+  --font-arabic-display: var(--font-noto-naskh-arabic), serif;
+  --font-arabic-sans: var(--font-ibm-plex-sans-arabic), sans-serif;
+
+  /* Tailwind's stock size scale is cleared: `text-sm` does not exist, only the
+     twelve named steps below. This forces every component onto the scale. */
+  --text-*: initial;
+
+  /* Display — Marcellus 400, never below 28px (§4.2). display-md's clamp floor
+     of 1.75rem is exactly 28px, which is what makes that rule hold. */
+  --text-display-xl: clamp(3rem, 7vw, 7rem);
+  --text-display-xl--line-height: 0.95;
+  --text-display-xl--letter-spacing: -0.02em;
+  --text-display-xl--font-weight: 400;
+  --text-display-lg: clamp(2.25rem, 4.5vw, 4.5rem);
+  --text-display-lg--line-height: 1;
+  --text-display-lg--letter-spacing: -0.015em;
+  --text-display-lg--font-weight: 400;
+  --text-display-md: clamp(1.75rem, 3vw, 3rem);
+  --text-display-md--line-height: 1.1;
+  --text-display-md--letter-spacing: -0.01em;
+  --text-display-md--font-weight: 400;
+
+  /* Headings — Inter 600 */
+  --text-heading-lg: 1.75rem;
+  --text-heading-lg--line-height: 1.25;
+  --text-heading-lg--letter-spacing: -0.01em;
+  --text-heading-lg--font-weight: 600;
+  --text-heading-md: 1.25rem;
+  --text-heading-md--line-height: 1.35;
+  --text-heading-md--letter-spacing: -0.005em;
+  --text-heading-md--font-weight: 600;
+  --text-heading-sm: 1rem;
+  --text-heading-sm--line-height: 1.4;
+  --text-heading-sm--letter-spacing: 0em;
+  --text-heading-sm--font-weight: 600;
+
+  /* Body — Inter 400 */
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.7;
+  --text-body-lg--letter-spacing: 0em;
+  --text-body-lg--font-weight: 400;
+  --text-body: 1rem;
+  --text-body--line-height: 1.65;
+  --text-body--letter-spacing: 0em;
+  --text-body--font-weight: 400;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.6;
+  --text-body-sm--letter-spacing: 0em;
+  --text-body-sm--font-weight: 400;
+
+  /* Caption — Inter 500, uppercase (see the .text-caption utility in §4) */
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.5;
+  --text-caption--letter-spacing: 0.06em;
+  --text-caption--font-weight: 500;
+
+  /* Spec — JetBrains Mono 400, tabular-nums always (§4.2) */
+  --text-spec: 0.875rem;
+  --text-spec--line-height: 1.5;
+  --text-spec--letter-spacing: 0em;
+  --text-spec--font-weight: 400;
+  --text-spec-sm: 0.75rem;
+  --text-spec-sm--line-height: 1.45;
+  --text-spec-sm--letter-spacing: 0em;
+  --text-spec-sm--font-weight: 400;
+
+  /* ------------------------------------------------------------------------
+     1.3 Spacing — docs/02-ux-blueprint.md §4.3
+
+     4px base, so every multiple of 4 is available (p-1 … p-48).
+
+     Note: §4.3 declares the scale as 4·8·12·16·24·32·48·64·96·128·192, then
+     the table beneath it uses 20px and 40px, which are not on that list. The
+     dynamic 4px scale covers both, and the named rhythm tokens below carry the
+     per-breakpoint values from that table so components consume an intent
+     ("card padding") rather than a number. See docs/adr/0006-spacing-scale.md.
+     ------------------------------------------------------------------------ */
+
+  --spacing: 0.25rem;
+  --spacing-section: var(--space-section);
+  --spacing-gutter: var(--space-gutter);
+  --spacing-card-pad: var(--space-card-pad);
+  --spacing-grid-gap: var(--space-grid-gap);
+  --spacing-field-stack: var(--space-field-stack);
+  --spacing-related: 0.5rem; /* 8px at every breakpoint */
+
+  /* ------------------------------------------------------------------------
+     1.4 Grid and breakpoints — docs/02-ux-blueprint.md §4.4
+
+     Only `sm` differs from Tailwind's defaults: the blueprint puts the first
+     breakpoint at 480px (xs is 0–479), Tailwind ships 640px.
+     ------------------------------------------------------------------------ */
+
+  --breakpoint-sm: 30rem; /* 480px — was 640px */
+
+  /* md 768 · lg 1024 · xl 1280 · 2xl 1536 match Tailwind's defaults. */
+
+  --container-content: 90rem; /* 1440px max content width */
+  --container-prose: 68ch; /* measure caps at 68ch for body prose (§4.2) */
+  --container-rail-lg: 15rem; /* 240px filter rail, 1024–1279 */
+  --container-rail-xl: 17.5rem; /* 280px filter rail, 1280+ */
+
+  /* ------------------------------------------------------------------------
+     1.5 Radius — docs/02-ux-blueprint.md §4.5
+
+     Product images are 12px (md) and never more: tiles are square-edged
+     objects and rounding them misrepresents the product.
+     ------------------------------------------------------------------------ */
+
+  --radius-*: initial;
+  --radius-sm: 0.375rem; /* 6px  — inputs, chips, badges */
+  --radius-md: 0.75rem; /* 12px — buttons, cards, product images */
+  --radius-lg: 1.25rem; /* 20px — panels, modals, drawers */
+  --radius-xl: 1.75rem; /* 28px — hero cards */
+
+  /* ------------------------------------------------------------------------
+     1.6 Elevation — docs/02-ux-blueprint.md §4.6
+
+     Six shadows, no more. Always tinted navy (rgb 20 31 82), never neutral
+     black — it is what makes every surface read as one material.
+     ------------------------------------------------------------------------ */
+
+  --shadow-*: initial;
+  --shadow-xs: 0 1px 2px rgb(20 31 82 / 0.05);
+  --shadow-card:
+    0 1px 2px rgb(20 31 82 / 0.04), 0 8px 24px rgb(20 31 82 / 0.06);
+  --shadow-hover:
+    0 2px 4px rgb(20 31 82 / 0.05), 0 16px 32px rgb(20 31 82 / 0.09);
+  --shadow-float:
+    0 4px 8px rgb(20 31 82 / 0.06), 0 24px 48px rgb(20 31 82 / 0.1);
+  --shadow-overlay:
+    0 8px 16px rgb(20 31 82 / 0.08), 0 40px 80px rgb(20 31 82 / 0.16);
+
+  /* ------------------------------------------------------------------------
+     1.7 Motion — docs/02-ux-blueprint.md §5.1
+
+     "Tile is heavy. Nothing bounces, nothing overshoots elastically."
+     ease-material is the house curve: front-loaded, settles hard, reads as mass.
+     ------------------------------------------------------------------------ */
+
+  --ease-*: initial;
+  --ease-material: cubic-bezier(0.32, 0.72, 0, 1); /* HOUSE CURVE — default */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1); /* entrances */
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1); /* two-way, wipes */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1); /* exits — always faster */
+  --ease-linear: linear;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+
+  /* ------------------------------------------------------------------------
+     1.8 Overlay entrances and exits
+
+     shadcn's primitives ship expecting `tw-animate-css` (animate-in,
+     slide-in-from-right, zoom-in-95, …). We deliberately do not install it: its
+     vocabulary is physical rather than logical, so it cannot mirror in RTL, and
+     its defaults are ease-out at 150ms, which contradicts §5.1. These are the
+     same behaviours expressed in our own tokens.
+
+     Exits are ~30% faster than entrances throughout (§5.1).
+     ------------------------------------------------------------------------ */
+
+  --animate-fade-in: fade-in var(--duration-quick) var(--ease-material) both;
+  --animate-fade-out: fade-out var(--duration-quick-exit) var(--ease-exit) both;
+
+  /* Scale settles to 1 from 0.96 — no overshoot. Tile is heavy (§5.9). */
+  --animate-scale-in: scale-in var(--duration-quick) var(--ease-material) both;
+  --animate-scale-out: scale-out var(--duration-quick-exit) var(--ease-exit) both;
+
+  /* Drawers: 300ms in, per §5.8. Inline variants follow text direction. */
+  --animate-slide-in-inline: slide-in-inline 300ms var(--ease-material) both;
+  --animate-slide-out-inline: slide-out-inline 210ms var(--ease-exit) both;
+  --animate-slide-in-block-start:
+    slide-in-block-start 300ms var(--ease-material) both;
+  --animate-slide-out-block-start:
+    slide-out-block-start 210ms var(--ease-exit) both;
+  --animate-slide-in-block-end:
+    slide-in-block-end 300ms var(--ease-material) both;
+  --animate-slide-out-block-end:
+    slide-out-block-end 210ms var(--ease-exit) both;
+
+  /* Accordion — height is animated from the Radix-provided content height. */
+  --animate-accordion-down:
+    accordion-down var(--duration-quick) var(--ease-material);
+  --animate-accordion-up:
+    accordion-up var(--duration-quick-exit) var(--ease-exit);
+}
+
+/* --------------------------------------------------------------------------
+   2. TOKENS THAT CANNOT LIVE IN @theme
+
+   @theme values are static. These respond to viewport or to locale, so they
+   are plain custom properties. Declared unlayered so they win over the
+   @layer theme output Tailwind generates above.
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* 2.1 Motion durations — docs/02-ux-blueprint.md §5.1.
+     Tailwind 4 has no --duration-* theme namespace, so these are custom
+     properties surfaced as utilities in §4 below. */
+  --duration-instant: 120ms; /* hover, focus, toggle feedback */
+  --duration-quick: 240ms; /* state change, chip add, tooltip */
+  --duration-base: 420ms; /* entrance, panel, drawer */
+  --duration-slow: 800ms; /* scroll reveals, large transitions */
+  --duration-cinema: 4200ms; /* the Assembly intro, and nothing else */
+
+  /* Exits are always ~30% faster than entrances (§5.1). Waiting for something
+     to leave is the most common source of "this feels slow". */
+  --duration-instant-exit: 84ms;
+  --duration-quick-exit: 168ms;
+  --duration-base-exit: 294ms;
+  --duration-slow-exit: 560ms;
+
+  /* 2.2 Stagger — consumed by the motion layer in Phase 3. */
+  --stagger-tight: 40ms; /* grid items */
+  --stagger-base: 60ms; /* section children */
+  --stagger-loose: 90ms; /* hero elements */
+
+  /* 2.3 The one permitted gradient — docs/02-ux-blueprint.md §4.1 rule 2.
+     Allowed on: intro light trails, scroll progress, focus rings, one hero
+     accent. Banned on buttons, cards, text, backgrounds, icons. */
+  --gradient-brand: linear-gradient(
+    135deg,
+    var(--color-navy-700) 0%,
+    var(--color-blue-500) 55%,
+    var(--color-cyan-400) 100%
+  );
+
+  /* 2.4 Focus — docs/02-ux-blueprint.md §7.4.
+     One treatment across the entire system. The blueprint specifies it as a
+     box-shadow pair; we render the same two rings with outline + outline-offset
+     because a box-shadow ring is clipped by any overflow:hidden ancestor —
+     including the product card's own image mask. See docs/adr/0007-focus-ring.md. */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--color-navy-700);
+  --focus-ring-color-on-dark: var(--color-cyan-400); /* 6.2:1 on navy-700 */
+
+  /* 2.5 Responsive rhythm — docs/02-ux-blueprint.md §4.3.
+     Mobile-first. Tablet from 768px, desktop from 1280px, matching the
+     primary-task tiers in §6. */
+  --space-section: 5rem; /* 80px  mobile */
+  --space-gutter: 1.25rem; /* 20px  mobile */
+  --space-card-pad: 1rem; /* 16px  mobile */
+  --space-grid-gap: 0.75rem; /* 12px  mobile */
+  --space-field-stack: 1rem; /* 16px  mobile */
+
+  /* 2.6 Direction sign for inline slide animations.
+     CSS has no logical `translate`, so a drawer animating in from the inline
+     end has to know which way that is. Flipping one custom property is how the
+     same keyframes serve both directions. */
+  --slide-inline-sign: 1;
+}
+
+[dir="rtl"] {
+  --slide-inline-sign: -1;
+}
+
+@media (width >= 48rem) {
+  :root {
+    --space-section: 6rem; /* 96px  tablet */
+    --space-gutter: 2.5rem; /* 40px  tablet */
+    --space-card-pad: 1.25rem; /* 20px  tablet */
+    --space-grid-gap: 1.25rem; /* 20px  tablet */
+    --space-field-stack: 1.25rem; /* 20px  tablet */
+  }
+}
+
+@media (width >= 80rem) {
+  :root {
+    --space-section: 8rem; /* 128px desktop */
+    --space-gutter: 4rem; /* 64px  desktop */
+    --space-card-pad: 1.5rem; /* 24px  desktop */
+    --space-grid-gap: 1.5rem; /* 24px  desktop */
+    --space-field-stack: 1.25rem; /* 20px  desktop */
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3. ARABIC — docs/02-ux-blueprint.md §4.2
+
+   "Arabic sizes step up 8% and line-height 12% at equivalent optical weight."
+
+   Because every type utility reads var(--text-*), re-declaring the tokens here
+   restyles the entire system for Arabic. One block, no second stylesheet.
+
+   Tracking is forced to 0: Arabic is cursive and letter-spacing breaks the
+   joins between glyphs. This is not in the blueprint and it should be — a
+   letter-spaced `caption` in Arabic renders as disconnected letterforms.
+   -------------------------------------------------------------------------- */
+
+html[lang="ar"] {
+  /* The Latin face stays in the stack behind the Arabic one. The Arabic faces
+     carry no Latin glyphs, so an English SKU inside Arabic prose (§7.2) resolves
+     through to Marcellus / Inter per character rather than to a system default. */
+  --font-display: var(--font-noto-naskh-arabic), var(--font-marcellus), serif;
+  --font-sans:
+    var(--font-ibm-plex-sans-arabic), var(--font-inter), ui-sans-serif,
+    system-ui, sans-serif;
+
+  /* +8% size */
+  --text-display-xl: clamp(3.24rem, 7.56vw, 7.56rem);
+  --text-display-lg: clamp(2.43rem, 4.86vw, 4.86rem);
+  --text-display-md: clamp(1.89rem, 3.24vw, 3.24rem);
+  --text-heading-lg: 1.89rem;
+  --text-heading-md: 1.35rem;
+  --text-heading-sm: 1.08rem;
+  --text-body-lg: 1.215rem;
+  --text-body: 1.08rem;
+  --text-body-sm: 0.945rem;
+  --text-caption: 0.8775rem;
+
+  /* +12% line-height */
+  --text-display-xl--line-height: 1.064;
+  --text-display-lg--line-height: 1.12;
+  --text-display-md--line-height: 1.232;
+  --text-heading-lg--line-height: 1.4;
+  --text-heading-md--line-height: 1.512;
+  --text-heading-sm--line-height: 1.568;
+  --text-body-lg--line-height: 1.904;
+  --text-body--line-height: 1.848;
+  --text-body-sm--line-height: 1.792;
+  --text-caption--line-height: 1.68;
+
+  /* No tracking on cursive script. */
+  --text-display-xl--letter-spacing: 0em;
+  --text-display-lg--letter-spacing: 0em;
+  --text-display-md--letter-spacing: 0em;
+  --text-heading-lg--letter-spacing: 0em;
+  --text-heading-md--letter-spacing: 0em;
+  --text-caption--letter-spacing: 0em;
+}
+
+/* Mono is for SKUs, dimensions and lot numbers — Latin in both locales, so it
+   is deliberately not switched above. */
+
+/* --------------------------------------------------------------------------
+   4. UTILITIES
+
+   Named motion utilities, because Tailwind 4 has no --duration-* namespace,
+   plus the two type roles that carry more than a font-size.
+   -------------------------------------------------------------------------- */
+
+@utility duration-instant {
+  transition-duration: var(--duration-instant);
+}
+
+@utility duration-quick {
+  transition-duration: var(--duration-quick);
+}
+
+@utility duration-base {
+  transition-duration: var(--duration-base);
+}
+
+@utility duration-slow {
+  transition-duration: var(--duration-slow);
+}
+
+@utility duration-cinema {
+  transition-duration: var(--duration-cinema);
+}
+
+@utility duration-instant-exit {
+  transition-duration: var(--duration-instant-exit);
+}
+
+@utility duration-quick-exit {
+  transition-duration: var(--duration-quick-exit);
+}
+
+@utility duration-base-exit {
+  transition-duration: var(--duration-base-exit);
+}
+
+/* Caption is always uppercase and tracked (§4.2). Bundling it into the utility
+   stops every consumer re-declaring `uppercase tracking-…`. */
+@utility text-caption {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--text-caption--font-weight);
+  line-height: var(--text-caption--line-height);
+  letter-spacing: var(--text-caption--letter-spacing);
+  text-transform: uppercase;
+}
+
+/* Spec type is always tabular (§4.2) — SKUs and dimensions must align in a
+   column, and proportional digits make a spec table look broken. */
+@utility text-spec {
+  font-family: var(--font-mono);
+  font-size: var(--text-spec);
+  line-height: var(--text-spec--line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+@utility text-spec-sm {
+  font-family: var(--font-mono);
+  font-size: var(--text-spec-sm);
+  line-height: var(--text-spec-sm--line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Inter's `cv11` single-storey `a`, for UI chrome only (§4.2). Deliberately not
+   applied to body prose — the double-storey `a` reads better at length. */
+@utility font-ui {
+  font-feature-settings: "cv11";
+}
+
+/* The brand gradient, so consumers never re-declare the stops. */
+@utility bg-brand-gradient {
+  background-image: var(--gradient-brand);
+}
+
+/* --------------------------------------------------------------------------
+   5. BASE
+   -------------------------------------------------------------------------- */
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  html {
+    /* 16px minimum for body text on mobile prevents iOS zoom-on-focus (§6.5). */
+    font-size: 100%;
+    text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    font-optical-sizing: auto; /* Inter's optical sizing, per §4.2 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizelegibility;
+  }
+
+  /* Display type is Marcellus and never below 28px, so headings that use the
+     display face opt in explicitly via `font-display text-display-*`. */
+
+  /* ------------------------------------------------------------------------
+     5.1 Focus — docs/02-ux-blueprint.md §7.4
+
+     ONE treatment across the entire system. :focus-visible so mouse users
+     don't see rings on click and keyboard users always do.
+     "Focus outlines are never removed."
+     ------------------------------------------------------------------------ */
+
+  :focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+    border-radius: inherit;
+  }
+
+  /* On dark grounds the ring becomes cyan-400, which reaches 6.2:1 there. */
+  .on-dark :focus-visible,
+  [data-ground="dark"] :focus-visible {
+    outline-color: var(--focus-ring-color-on-dark);
+  }
+
+  /* Focus is never hidden behind sticky chrome (§7.4). */
+  :where(a, button, input, select, textarea, summary, [tabindex]) {
+    scroll-margin-block: 6rem;
+  }
+
+  /* ------------------------------------------------------------------------
+     5.2 Selection and scrollbars
+     ------------------------------------------------------------------------ */
+
+  ::selection {
+    background-color: var(--color-cyan-100);
+    color: var(--color-navy-900);
+  }
+
+  /* ------------------------------------------------------------------------
+     5.3 Skeleton shimmer — docs/02-ux-blueprint.md §4.16
+
+     stone-100 base, 1.4s sweep travelling at 45° along the brand axis.
+     ------------------------------------------------------------------------ */
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+     5.4 Overlay keyframes
+
+     Consumed through the --animate-* tokens in §1.8. Every one of these has a
+     reduced-motion equivalent by way of the global rule in §6, which collapses
+     the duration; the end state of each is the visible, usable state, so
+     collapsing them never leaves an element invisible.
+     ------------------------------------------------------------------------ */
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fade-out {
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes scale-out {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    to {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  @keyframes slide-in-inline {
+    from {
+      transform: translateX(calc(100% * var(--slide-inline-sign)));
+    }
+
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slide-out-inline {
+    from {
+      transform: translateX(0);
+    }
+
+    to {
+      transform: translateX(calc(100% * var(--slide-inline-sign)));
+    }
+  }
+
+  @keyframes slide-in-block-start {
+    from {
+      transform: translateY(-100%);
+    }
+
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-out-block-start {
+    from {
+      transform: translateY(0);
+    }
+
+    to {
+      transform: translateY(-100%);
+    }
+  }
+
+  @keyframes slide-in-block-end {
+    from {
+      transform: translateY(100%);
+    }
+
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-out-block-end {
+    from {
+      transform: translateY(0);
+    }
+
+    to {
+      transform: translateY(100%);
+    }
+  }
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+
+    to {
+      height: 0;
+    }
+  }
+}
+
+/* --------------------------------------------------------------------------
+   6. REDUCED MOTION — docs/02-ux-blueprint.md §5.12
+
+   Honoured globally, not per component. "Nothing becomes unavailable or
+   unclear in reduced-motion mode."
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  /* Skeletons go static stone-100 rather than shimmering (§5.12). */
+  [data-skeleton] {
+    background-image: none !important;
+    background-color: var(--color-stone-100) !important;
+  }
+}

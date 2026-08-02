@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "title": "Amin Ceramic",
+    "titleTemplate": "{page} · Amin Ceramic",
+    "description": "Porcelain and ceramic surfaces for Lebanese homes, studios and sites."
+  },
+  "common": {
+    "skipToContent": "Skip to content",
+    "localeSwitcher": {
+      "label": "Language",
+      "en": "English",
+      "ar": "Arabic"
+    }
+  },
+  "foundation": {
+    "eyebrow": "Phase 0 · Foundation",
+    "title": "Surfaces that hold their line.",
+    "lede": "This route exists to prove the foundation, not to sell anything. Every colour, type step, spacing value, radius, shadow and easing curve below is read from a design token. Nothing here is hardcoded.",
+    "direction": "Text direction",
+    "sections": {
+      "tenant": "Database",
+      "colour": "Colour",
+      "type": "Typography",
+      "primitives": "Primitives",
+      "logical": "Logical properties",
+      "motion": "Motion",
+      "focus": "Focus"
+    },
+    "tenant": {
+      "heading": "Seeded tenant, read live through Prisma",
+      "note": "Read through an application use-case, which calls a repository that returns a domain type. No Prisma type reaches this component.",
+      "name": "Name",
+      "slug": "Slug",
+      "locales": "Supported locales",
+      "currency": "Default currency",
+      "wastage": "Default wastage",
+      "measurement": "Measurement system",
+      "unavailable": "No database connection configured.",
+      "unavailableNote": "Set DATABASE_URL in .env.local, then run pnpm db:migrate and pnpm db:seed."
+    },
+    "colour": {
+      "heading": "Brand ramp",
+      "note": "Contrast ratios are computed from the token values at render time, not transcribed from the design document.",
+      "onWhite": "on white",
+      "cyanRule": "cyan-400 is 2.0:1 on white. It is a surface, stroke, glow and motion colour — never text on a light ground. On navy-700 it reaches 6.2:1 and is permitted."
+    },
+    "type": {
+      "heading": "Type scale",
+      "note": "Arabic steps up 8% in size and 12% in line-height, with tracking forced to zero — letter-spacing breaks the cursive joins.",
+      "sample": "Large-format marble-look porcelain",
+      "specSample": "AC-6012-MT · 600 × 1200 mm · R10 · V2"
+    },
+    "logical": {
+      "heading": "Layout mirrors, brand geometry does not",
+      "note": "Switch to Arabic: the rail moves to the other side because everything uses logical properties. The diamond keeps its bottom-left to top-right axis, because mirroring it would alter the brand mark.",
+      "rail": "Filter rail",
+      "content": "Content"
+    },
+    "focus": {
+      "heading": "One focus treatment",
+      "note": "Tab through these. The same ring appears on every control, on light and dark grounds alike, and is never clipped by an overflow-hidden ancestor.",
+      "onDark": "On a dark ground the ring becomes cyan-400, which reaches 6.2:1 there."
+    },
+    "motion": {
+      "heading": "Motion tokens",
+      "note": "Nothing bounces — tile is heavy. Exits run about 30% faster than entrances. All of this collapses to nothing under prefers-reduced-motion.",
+      "play": "Play"
+    }
+  }
+}

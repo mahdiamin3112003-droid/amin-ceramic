@@ -1,0 +1,15 @@
+.next
+out
+build
+coverage
+storybook-static
+node_modules
+pnpm-lock.yaml
+public/fonts
+prisma/generated
+prisma/migrations
+docs/01-architecture.md
+docs/02-ux-blueprint.md
+docs/03-database-design.md
+docs/04-api-architecture.md
+CLAUDE.md
