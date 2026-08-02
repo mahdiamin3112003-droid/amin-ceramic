@@ -55,6 +55,7 @@ export default tseslint.config(
       "amin/no-raw-color": "error",
       "amin/no-physical-properties": "error",
       "amin/no-cyan-text": "error",
+      "amin/no-transition-colors": "error",
 
       // "TypeScript strict. No `any`."
       "@typescript-eslint/no-explicit-any": "error",
@@ -117,7 +118,13 @@ export default tseslint.config(
               message:
                 "domain/ imports NOTHING outside domain/ — no Prisma, no React, no fetch, no lib. It is pure business rules and it will outlive every other layer. See docs/01-architecture.md §5.3.",
             },
-            { from: ["application"], allow: ["domain", "application", "shared"] },
+            {
+              // Use-cases orchestrate: they call repositories, AI providers and
+              // the cache. That is the flow docs/01-architecture.md §5.4 draws.
+              // What they may NOT do is import presentation.
+              from: ["application"],
+              allow: ["domain", "application", "infrastructure", "shared"],
+            },
             {
               from: ["infrastructure"],
               allow: ["domain", "application", "infrastructure", "shared"],

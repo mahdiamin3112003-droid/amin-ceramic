@@ -72,12 +72,12 @@ export default async function LocaleLayout({
       className={fontVariables}
       suppressHydrationWarning
     >
-      <body className="bg-background text-foreground min-h-dvh antialiased">
+      <body className="min-h-dvh bg-background text-foreground antialiased">
         <NextIntlClientProvider>
           {/* Skip link — docs/02-ux-blueprint.md §7.1. Visible on focus only. */}
           <a
             href="#main"
-            className="bg-primary text-primary-foreground text-body-sm focus:ring-offset-background sr-only rounded-md px-4 py-2 focus:not-sr-only focus:absolute focus:z-50 focus:m-4"
+            className="sr-only rounded-md bg-primary px-4 py-2 text-body-sm text-primary-foreground focus:not-sr-only focus:absolute focus:z-50 focus:m-4 focus:ring-offset-background"
           >
             {t("skipToContent")}
           </a>

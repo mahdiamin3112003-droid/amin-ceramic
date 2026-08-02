@@ -16,7 +16,8 @@
  * regression into something a reviewer sees.
  */
 
-const CYAN_TEXT_CLASS = /(?:^|[\s:])-?text-(?:cyan-(?:50|100|300|400)|stroke-accent|surface-accent)\b/;
+const CYAN_TEXT_CLASS =
+  /(?:^|[\s:])-?text-(?:cyan-(?:50|100|300|400)|stroke-accent|surface-accent)\b/;
 const CYAN_TEXT_CSS = /\bcolor\s*:\s*var\(\s*--color-cyan-(?:50|100|300|400)/;
 
 /** @type {import('eslint').Rule.RuleModule} */

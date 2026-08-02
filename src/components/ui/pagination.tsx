@@ -121,7 +121,7 @@ function PaginationEllipsis({
     <span
       data-slot="pagination-ellipsis"
       className={cn(
-        "text-stone-600 flex size-11 items-center justify-center",
+        "flex size-11 items-center justify-center text-stone-600",
         className,
       )}
       {...props}

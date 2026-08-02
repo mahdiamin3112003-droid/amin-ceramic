@@ -64,9 +64,7 @@ function linearise(channel: number): number {
 /** WCAG relative luminance, 0 (black) to 1 (white). */
 export function relativeLuminance(colour: Rgb | string): number {
   const { r, g, b } = typeof colour === "string" ? parseHex(colour) : colour;
-  return (
-    0.2126 * linearise(r) + 0.7152 * linearise(g) + 0.0722 * linearise(b)
-  );
+  return 0.2126 * linearise(r) + 0.7152 * linearise(g) + 0.0722 * linearise(b);
 }
 
 /**

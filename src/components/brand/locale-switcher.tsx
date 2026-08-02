@@ -72,7 +72,7 @@ export function LocaleSwitcher({ className }: { className?: string }) {
             aria-current={isActive ? "true" : undefined}
             disabled={isPending}
             className={cn(
-              "text-body-sm rounded-sm px-3 py-1.5 transition-colors",
+              "rounded-sm px-3 py-1.5 text-body-sm transition-surface",
               "duration-instant ease-material",
               "disabled:pointer-events-none disabled:opacity-60",
               isActive

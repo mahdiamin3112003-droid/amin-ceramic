@@ -26,7 +26,7 @@ export function Skeleton({ className, ...props }: ComponentProps<"div">) {
       data-skeleton=""
       aria-hidden="true"
       className={cn(
-        "bg-stone-100 rounded-md",
+        "rounded-md bg-stone-100",
         "animate-shimmer bg-[length:200%_100%]",
         "bg-[linear-gradient(115deg,var(--color-stone-100)_35%,var(--color-white)_50%,var(--color-stone-100)_65%)]",
         className,

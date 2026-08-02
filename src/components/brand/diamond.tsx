@@ -26,11 +26,7 @@ type DiamondProps = ComponentProps<"svg"> & {
   variant?: "filled" | "outline";
 };
 
-export function Diamond({
-  className,
-  variant = "filled",
-  ...props
-}: DiamondProps) {
+export function Diamond({ className, variant = "filled", ...props }: DiamondProps) {
   return (
     <svg
       viewBox="0 0 24 24"

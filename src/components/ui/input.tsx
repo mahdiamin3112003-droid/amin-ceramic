@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentProps, ReactNode } from "react";
-import { useId } from "react";
+import { createContext, useContext, useId } from "react";
 
 import { cva, type VariantProps } from "class-variance-authority";
 import { AlertTriangle, Check } from "lucide-react";
@@ -26,14 +26,14 @@ import { cn } from "@/lib/utils";
  */
 const inputVariants = cva(
   [
-    "bg-background w-full min-w-0 rounded-sm border",
+    "w-full min-w-0 rounded-sm border bg-background",
     "text-body text-foreground placeholder:text-stone-500",
     "transition-[border-color,background-color] duration-instant ease-material",
     "disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500",
     // Read-only loses its border and takes a stone fill: it reads as a value,
     // not as something you are invited to type into.
     "read-only:border-transparent read-only:bg-stone-50",
-    "file:text-body-sm file:border-0 file:bg-transparent file:font-medium",
+    "file:border-0 file:bg-transparent file:text-body-sm file:font-medium",
   ],
   {
     variants: {
@@ -67,7 +67,8 @@ const inputVariants = cva(
 );
 
 export interface InputProps
-  extends Omit<ComponentProps<"input">, "size">,
+  extends
+    Omit<ComponentProps<"input">, "size">,
     Pick<VariantProps<typeof inputVariants>, "inputSize"> {
   /** Error message. Its presence puts the field into the error state. */
   error?: string;
@@ -81,18 +82,26 @@ export function Input({
   inputSize = "md",
   error,
   success = false,
+  id,
   ...props
 }: InputProps) {
-  const state = error ? "error" : success ? "success" : "default";
+  // A Field wrapper supplies the id and the describedby link. Reading them from
+  // context rather than a render prop keeps Field usable from Server Components
+  // — functions cannot cross the server/client boundary as props.
+  const field = useContext(FieldContext);
+  const resolvedError = error ?? field?.error;
+  const state = resolvedError ? "error" : success ? "success" : "default";
   const showTrailing = state !== "default";
 
   return (
     <div className="relative w-full">
       <input
         type={type}
+        id={id ?? field?.id}
+        aria-describedby={props["aria-describedby"] ?? field?.describedBy}
         data-slot="input"
         data-state={state}
-        aria-invalid={error ? true : undefined}
+        aria-invalid={resolvedError ? true : undefined}
         className={cn(
           inputVariants({ inputSize, state, hasTrailingIcon: showTrailing }),
           className,
@@ -102,7 +111,7 @@ export function Input({
       {showTrailing ? (
         <span
           className={cn(
-            "pointer-events-none absolute inset-block-0 end-3 flex items-center",
+            "inset-block-0 pointer-events-none absolute end-3 flex items-center",
             state === "error" ? "text-danger-600" : "text-success-600",
           )}
         >
@@ -120,6 +129,14 @@ export function Input({
  *  with it." That replacement is the whole reason this wrapper exists: leaving
  *  it to each call site is how you end up with both showing at once.
  */
+interface FieldContextValue {
+  readonly id: string;
+  readonly describedBy: string | undefined;
+  readonly error: string | undefined;
+}
+
+const FieldContext = createContext<FieldContextValue | null>(null);
+
 export interface FieldProps {
   label: string;
   /** Format example only — never a substitute for the label (§4.8). */
@@ -130,10 +147,7 @@ export interface FieldProps {
   /** Marks the field explicitly optional, where optional is the minority. */
   optional?: boolean;
   optionalLabel?: string;
-  children: (props: {
-    id: string;
-    "aria-describedby": string | undefined;
-  }) => ReactNode;
+  children: ReactNode;
   className?: string;
 }
 
@@ -161,10 +175,15 @@ export function Field({
         ) : null}
       </Label>
 
-      {children({
-        id,
-        "aria-describedby": hasMessage ? messageId : undefined,
-      })}
+      <FieldContext.Provider
+        value={{
+          id,
+          describedBy: hasMessage ? messageId : undefined,
+          error,
+        }}
+      >
+        {children}
+      </FieldContext.Provider>
 
       {hasMessage ? (
         <p
@@ -173,7 +192,7 @@ export function Field({
           // reachable through aria-describedby (§7.2).
           role={error ? "alert" : undefined}
           className={cn(
-            "text-body-sm flex items-center gap-1.5",
+            "flex items-center gap-1.5 text-body-sm",
             error ? "text-danger-600" : "text-stone-600",
           )}
         >

@@ -37,7 +37,7 @@ export function Toaster(props: ToasterProps) {
           <Icon icon={AlertTriangle} size="sm" className="text-warning-600" />
         ),
         error: <Icon icon={OctagonX} size="sm" className="text-danger-600" />,
-        loading: <DiamondSpinner className="text-primary size-4" />,
+        loading: <DiamondSpinner className="size-4 text-primary" />,
         close: <Diamond variant="outline" className="size-3" />,
       }}
       style={

@@ -110,3 +110,48 @@ export function resolveColour(
   }
   return value;
 }
+
+/**
+ * The brand ramp in the order docs/02-ux-blueprint.md §4.1 lists it, resolved to
+ * literal hex from the token file.
+ *
+ * Reading it rather than restating it is the point: the Storybook Tokens page
+ * and the foundation demo route both render this, so neither can drift from what
+ * the product actually ships. Node runtime only (it reads from disk).
+ */
+export interface RampEntry {
+  readonly token: string;
+  readonly hex: string;
+  readonly note?: string;
+}
+
+const RAMP_ORDER: readonly { name: string; note?: string }[] = [
+  { name: "navy-950" },
+  { name: "navy-900" },
+  { name: "navy-800" },
+  { name: "navy-700", note: "primary" },
+  { name: "navy-600" },
+  { name: "blue-500" },
+  { name: "blue-400", note: "large text and icons only" },
+  { name: "cyan-400", note: "surface, stroke, glow — never text on light" },
+  { name: "cyan-300", note: "decorative only" },
+  { name: "cyan-100" },
+  { name: "cyan-50" },
+  { name: "stone-50" },
+  { name: "stone-100" },
+  { name: "stone-300" },
+  { name: "stone-500" },
+  { name: "stone-600" },
+  { name: "stone-800" },
+  { name: "success-600" },
+  { name: "warning-600" },
+  { name: "danger-600" },
+];
+
+export function readBrandRamp(tokens: TokenSets = readTokens()): RampEntry[] {
+  return RAMP_ORDER.map(({ name, note }) => ({
+    token: name,
+    hex: resolveColour(`--color-${name}`, tokens.all),
+    ...(note === undefined ? {} : { note }),
+  }));
+}

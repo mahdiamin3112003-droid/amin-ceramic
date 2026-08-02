@@ -10,6 +10,7 @@
 import noRawColor from "./no-raw-color.js";
 import noPhysicalProperties from "./no-physical-properties.js";
 import noCyanText from "./no-cyan-text.js";
+import noTransitionColors from "./no-transition-colors.js";
 
 /** @type {import('eslint').ESLint.Plugin} */
 const plugin = {
@@ -21,6 +22,7 @@ const plugin = {
     "no-raw-color": noRawColor,
     "no-physical-properties": noPhysicalProperties,
     "no-cyan-text": noCyanText,
+    "no-transition-colors": noTransitionColors,
   },
 };
 

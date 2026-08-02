@@ -52,8 +52,8 @@ function SheetOverlay({
     <SheetPrimitive.Overlay
       data-slot="sheet-overlay"
       className={cn(
-        "bg-navy-950/60 fixed inset-0 z-50",
-        "data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out",
+        "fixed inset-0 z-50 bg-navy-950/60",
+        "data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in",
         className,
       )}
       {...props}
@@ -94,7 +94,7 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "bg-background shadow-overlay fixed z-50 flex flex-col gap-4",
+          "fixed z-50 flex flex-col gap-4 bg-background shadow-overlay",
           SIDE_CLASSES[side],
           className,
         )}
@@ -104,7 +104,7 @@ function SheetContent({
         {showCloseButton ? (
           <SheetPrimitive.Close
             aria-label={closeLabel}
-            className="text-stone-600 hover:bg-stone-50 hover:text-foreground duration-instant ease-material absolute top-3 end-3 flex size-11 items-center justify-center rounded-full transition-colors disabled:pointer-events-none"
+            className="absolute end-3 top-3 flex size-11 items-center justify-center rounded-full text-stone-600 transition-surface duration-instant ease-material hover:bg-stone-50 hover:text-foreground disabled:pointer-events-none"
           >
             <Icon icon={X} size="sm" />
           </SheetPrimitive.Close>
@@ -118,7 +118,7 @@ function SheetHeader({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-header"
-      className={cn("border-border flex flex-col gap-1.5 border-b p-6", className)}
+      className={cn("flex flex-col gap-1.5 border-b border-border p-6", className)}
       {...props}
     />
   );
@@ -129,7 +129,7 @@ function SheetFooter({ className, ...props }: ComponentProps<"div">) {
     <div
       data-slot="sheet-footer"
       className={cn(
-        "border-border mt-auto flex flex-col gap-2 border-t p-6",
+        "mt-auto flex flex-col gap-2 border-t border-border p-6",
         className,
       )}
       {...props}

@@ -249,12 +249,9 @@
 
   --shadow-*: initial;
   --shadow-xs: 0 1px 2px rgb(20 31 82 / 0.05);
-  --shadow-card:
-    0 1px 2px rgb(20 31 82 / 0.04), 0 8px 24px rgb(20 31 82 / 0.06);
-  --shadow-hover:
-    0 2px 4px rgb(20 31 82 / 0.05), 0 16px 32px rgb(20 31 82 / 0.09);
-  --shadow-float:
-    0 4px 8px rgb(20 31 82 / 0.06), 0 24px 48px rgb(20 31 82 / 0.1);
+  --shadow-card: 0 1px 2px rgb(20 31 82 / 0.04), 0 8px 24px rgb(20 31 82 / 0.06);
+  --shadow-hover: 0 2px 4px rgb(20 31 82 / 0.05), 0 16px 32px rgb(20 31 82 / 0.09);
+  --shadow-float: 0 4px 8px rgb(20 31 82 / 0.06), 0 24px 48px rgb(20 31 82 / 0.1);
   --shadow-overlay:
     0 8px 16px rgb(20 31 82 / 0.08), 0 40px 80px rgb(20 31 82 / 0.16);
 
@@ -295,20 +292,16 @@
   /* Drawers: 300ms in, per §5.8. Inline variants follow text direction. */
   --animate-slide-in-inline: slide-in-inline 300ms var(--ease-material) both;
   --animate-slide-out-inline: slide-out-inline 210ms var(--ease-exit) both;
-  --animate-slide-in-block-start:
-    slide-in-block-start 300ms var(--ease-material) both;
-  --animate-slide-out-block-start:
-    slide-out-block-start 210ms var(--ease-exit) both;
-  --animate-slide-in-block-end:
-    slide-in-block-end 300ms var(--ease-material) both;
-  --animate-slide-out-block-end:
-    slide-out-block-end 210ms var(--ease-exit) both;
+  --animate-slide-in-block-start: slide-in-block-start 300ms var(--ease-material)
+    both;
+  --animate-slide-out-block-start: slide-out-block-start 210ms var(--ease-exit) both;
+  --animate-slide-in-block-end: slide-in-block-end 300ms var(--ease-material) both;
+  --animate-slide-out-block-end: slide-out-block-end 210ms var(--ease-exit) both;
 
   /* Accordion — height is animated from the Radix-provided content height. */
-  --animate-accordion-down:
-    accordion-down var(--duration-quick) var(--ease-material);
-  --animate-accordion-up:
-    accordion-up var(--duration-quick-exit) var(--ease-exit);
+  --animate-accordion-down: accordion-down var(--duration-quick)
+    var(--ease-material);
+  --animate-accordion-up: accordion-up var(--duration-quick-exit) var(--ease-exit);
 }
 
 /* --------------------------------------------------------------------------
@@ -420,8 +413,8 @@ html[lang="ar"] {
      through to Marcellus / Inter per character rather than to a system default. */
   --font-display: var(--font-noto-naskh-arabic), var(--font-marcellus), serif;
   --font-sans:
-    var(--font-ibm-plex-sans-arabic), var(--font-inter), ui-sans-serif,
-    system-ui, sans-serif;
+    var(--font-ibm-plex-sans-arabic), var(--font-inter), ui-sans-serif, system-ui,
+    sans-serif;
 
   /* +8% size */
   --text-display-xl: clamp(3.24rem, 7.56vw, 7.56rem);
@@ -525,6 +518,29 @@ html[lang="ar"] {
   font-variant-numeric: tabular-nums;
 }
 
+/* USE THIS INSTEAD OF `transition-colors`.
+   Enforced by eslint `amin/no-physical-properties`' sibling check — see
+   tools/eslint/no-transition-colors.js.
+
+   Tailwind's `transition-colors` includes `outline-color` in its property list.
+   Because utilities outrank the base layer, any element carrying it fades its
+   focus ring in FROM currentColor: on a navy button that is a white ring on a
+   white page for the length of the transition, and on every other control it is
+   a ring of the wrong colour at exactly the moment the user is looking for it.
+   §7.4 requires one focus treatment, legible the instant it appears.
+
+   `@utility transition-colors` does NOT fix this — Tailwind merges an override
+   of a built-in utility into the same rule rather than replacing it, so the
+   built-in's `transition-property` still wins on source order. A distinct name
+   is the only reliable answer. */
+@utility transition-surface {
+  transition-property:
+    color, background-color, border-color, text-decoration-color, fill, stroke,
+    box-shadow, opacity;
+  transition-timing-function: var(--ease-material);
+  transition-duration: var(--duration-quick);
+}
+
 /* Inter's `cv11` single-storey `a`, for UI chrome only (§4.2). Deliberately not
    applied to body prose — the double-storey `a` reads better at length. */
 @utility font-ui {
@@ -577,16 +593,23 @@ html[lang="ar"] {
      "Focus outlines are never removed."
      ------------------------------------------------------------------------ */
 
+  /* Longhands, not the `outline` shorthand. A shorthand containing a var() that
+     is invalid at computed-value time discards the WHOLE declaration and falls
+     back to `currentColor` — which on a navy button paints a white ring on a
+     white page. Longhands fail independently, and each carries a literal
+     fallback so the ring survives even if a token is missing. */
   :focus-visible {
-    outline: var(--focus-ring-width) solid var(--focus-ring-color);
-    outline-offset: var(--focus-ring-offset);
+    outline-width: var(--focus-ring-width, 2px);
+    outline-style: solid;
+    outline-color: var(--focus-ring-color, #1e2c6e);
+    outline-offset: var(--focus-ring-offset, 2px);
     border-radius: inherit;
   }
 
-  /* On dark grounds the ring becomes cyan-400, which reaches 6.2:1 there. */
-  .on-dark :focus-visible,
-  [data-ground="dark"] :focus-visible {
-    outline-color: var(--focus-ring-color-on-dark);
+  /* On dark grounds the ring becomes cyan-400, which reaches 6.2:1 there.
+     `:is()` keeps this to one selector so it cannot be split or reordered. */
+  :is(.on-dark, [data-ground="dark"]) :focus-visible {
+    outline-color: var(--focus-ring-color-on-dark, #5fc4e4);
   }
 
   /* Focus is never hidden behind sticky chrome (§7.4). */

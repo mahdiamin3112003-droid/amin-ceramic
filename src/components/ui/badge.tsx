@@ -4,10 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
 
 import { Diamond } from "@/components/brand/diamond";
-import {
-  ShadeVariationIcon,
-  SlipRatingIcon,
-} from "@/components/brand/spec-icons";
+import { ShadeVariationIcon, SlipRatingIcon } from "@/components/brand/spec-icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,7 +23,7 @@ import { cn } from "@/lib/utils";
  */
 const badgeVariants = cva(
   [
-    "text-caption inline-flex w-fit shrink-0 items-center gap-1.5",
+    "inline-flex w-fit shrink-0 items-center gap-1.5 text-caption",
     "rounded-sm border border-transparent px-2 py-1 whitespace-nowrap",
     "[&>svg]:size-3.5 [&>svg]:shrink-0",
   ],
@@ -39,8 +36,8 @@ const badgeVariants = cva(
         new: "bg-primary text-primary-foreground",
         bestSeller: "bg-cyan-100 text-navy-900",
         outdoor: "border-stone-300 text-stone-600",
-        slip: "text-primary border-primary",
-        shade: "text-primary border-primary",
+        slip: "border-primary text-primary",
+        shade: "border-primary text-primary",
         tradeOnly: "bg-navy-900 text-white",
         discontinued: "bg-stone-100 text-stone-600 line-through",
         match: "bg-stone-50 text-navy-900",
@@ -58,15 +55,8 @@ const badgeVariants = cva(
  */
 function StockDot({ fill }: { fill: "full" | "half" | "none" }) {
   return (
-    <svg
-      viewBox="0 0 8 8"
-      aria-hidden="true"
-      focusable="false"
-      className="size-2"
-    >
-      {fill === "full" ? (
-        <circle cx="4" cy="4" r="4" fill="currentColor" />
-      ) : null}
+    <svg viewBox="0 0 8 8" aria-hidden="true" focusable="false" className="size-2">
+      {fill === "full" ? <circle cx="4" cy="4" r="4" fill="currentColor" /> : null}
       {fill === "half" ? (
         <>
           <circle
@@ -99,8 +89,7 @@ type BadgeVariant = NonNullable<
 >;
 
 export interface BadgeProps
-  extends ComponentProps<"span">,
-    VariantProps<typeof badgeVariants> {
+  extends ComponentProps<"span">, VariantProps<typeof badgeVariants> {
   asChild?: boolean;
   /** Overrides the variant's default icon. Pass `null` for text alone. */
   icon?: ReactNode | null;

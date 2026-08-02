@@ -44,25 +44,25 @@ const buttonVariants = cva(
         primary: [
           "bg-primary text-primary-foreground",
           "hover:bg-navy-800 hover:shadow-hover",
-          "active:bg-navy-600 active:scale-[0.98]",
+          "active:scale-[0.98] active:bg-navy-600",
           "disabled:bg-stone-100 disabled:text-stone-500 disabled:shadow-none",
         ],
         /** White with a navy hairline; fills cyan-50 on hover. */
         secondary: [
-          "bg-background text-primary border-primary border",
+          "border border-primary bg-background text-primary",
           "hover:bg-cyan-50",
-          "active:bg-cyan-100 active:scale-[0.98]",
-          "disabled:border-stone-300 disabled:text-stone-500 disabled:bg-background",
+          "active:scale-[0.98] active:bg-cyan-100",
+          "disabled:border-stone-300 disabled:bg-background disabled:text-stone-500",
         ],
         ghost: [
-          "text-primary bg-transparent",
+          "bg-transparent text-primary",
           "hover:bg-stone-50",
           "active:bg-stone-100",
-          "disabled:text-stone-500 disabled:bg-transparent",
+          "disabled:bg-transparent disabled:text-stone-500",
         ],
         /** Underline offset stays 4px; the line thickens rather than moving. */
         text: [
-          "text-primary bg-transparent underline underline-offset-4",
+          "bg-transparent text-primary underline underline-offset-4",
           "decoration-1 hover:decoration-2",
           "disabled:text-stone-500 disabled:no-underline",
         ],
@@ -74,16 +74,16 @@ const buttonVariants = cva(
         ],
         /** Transparent, with a stone circle appearing behind it on hover. */
         icon: [
-          "text-foreground rounded-full bg-transparent",
+          "rounded-full bg-transparent text-foreground",
           "hover:bg-stone-50",
           "active:bg-stone-100",
-          "disabled:text-stone-500 disabled:bg-transparent",
+          "disabled:bg-transparent disabled:text-stone-500",
         ],
       },
       size: {
-        sm: "text-body-sm h-8 px-3",
-        md: "text-body h-11 px-5",
-        lg: "text-body-lg h-13 px-7",
+        sm: "h-8 px-3 text-body-sm",
+        md: "h-11 px-5 text-body",
+        lg: "h-13 px-7 text-body-lg",
       },
       /** Icon-only buttons are square and never below the touch target. */
       iconOnly: {

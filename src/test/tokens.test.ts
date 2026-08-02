@@ -15,12 +15,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  WCAG,
-  contrastRatio,
-  contrastRatioRounded,
-} from "@/lib/utils/contrast";
-import { readTokens, resolveColour } from "./read-tokens";
+import { WCAG, contrastRatio, contrastRatioRounded } from "@/lib/utils/contrast";
+import { readBrandRamp, readTokens, resolveColour } from "@/lib/utils/tokens";
 
 const tokens = readTokens();
 const { theme, root, arabic, all } = tokens;
@@ -61,6 +57,13 @@ describe("colour tokens", () => {
     ["--color-info-600", "#2a3d8f"],
   ])("%s is %s, exactly as extracted from the logo", (token, expected) => {
     expect(theme.get(token)).toBe(expected);
+  });
+
+  it("exposes the ramp for Storybook and the demo route to render", () => {
+    // Both read this rather than restating the hexes, so neither can drift.
+    const ramp = readBrandRamp(tokens);
+    expect(ramp).toHaveLength(20);
+    expect(ramp.every((entry) => /^#[0-9a-f]{6}$/.test(entry.hex))).toBe(true);
   });
 
   it("defines no colours beyond the documented palette", () => {
@@ -161,9 +164,9 @@ describe("role tokens resolve to accessible pairings", () => {
   });
 
   it("borders and the focus ring meet the 3:1 non-text minimum (§7.3)", () => {
-    expect(
-      contrastRatio(colour("--color-border"), WHITE),
-    ).toBeGreaterThanOrEqual(1.3); // hairlines are decorative separation
+    expect(contrastRatio(colour("--color-border"), WHITE)).toBeGreaterThanOrEqual(
+      1.3,
+    ); // hairlines are decorative separation
     expect(contrastRatio(colour("--color-ring"), WHITE)).toBeGreaterThanOrEqual(
       WCAG.AA_LARGE,
     );

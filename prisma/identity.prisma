@@ -1,0 +1,175 @@
+// IDENTITY — docs/03-database-design.md §2
+//
+// Phase 0 defines only tenant, app_user and visitor. role, permission,
+// role_permission, user_role and trade_account (§2.4–2.6) land in Phase 1 with
+// the rest of the schema.
+//
+// The decision that shapes everything here (§0.2): every tenant-scoped table
+// carries tenant_id from day one, and every uniqueness constraint is
+// tenant-scoped. Retrofitting that later means resolving real collisions in
+// live data — the one thing in this schema that genuinely cannot be added later.
+
+enum TenantStatus {
+  active
+  suspended
+
+  @@map("tenant_status")
+}
+
+enum MeasurementSystem {
+  metric
+  imperial
+
+  @@map("measurement_system")
+}
+
+enum MeasurementPreference {
+  m2
+  ft2
+
+  @@map("measurement_preference")
+}
+
+enum UserType {
+  customer
+  designer
+  contractor
+  staff
+
+  @@map("user_type")
+}
+
+enum AppUserStatus {
+  active
+  invited
+  suspended
+
+  @@map("app_user_status")
+}
+
+/// The organisation. One row in v1.
+///
+/// Present so multi-tenancy is a configuration change rather than a rewrite
+/// (§19). Nothing here is speculative machinery: it is one column, one index
+/// prefix and one RLS predicate.
+model Tenant {
+  id String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+
+  /// Future subdomain or path segment. citext so `Amin-Ceramic` and
+  /// `amin-ceramic` cannot both be registered.
+  slug      String @unique @db.Citext
+  name      String
+  legalName String? @map("legal_name")
+
+  defaultLocale     String            @default("en") @map("default_locale")
+  supportedLocales  String[]          @default(["en", "ar"]) @map("supported_locales")
+  defaultCurrency   String            @default("USD") @map("default_currency") @db.Char(3)
+  measurementSystem MeasurementSystem @default(metric) @map("measurement_system")
+
+  /// Overridable per product and per layout pattern (§8.2 item 11:
+  /// herringbone genuinely needs ~15%, grid ~7%).
+  defaultWastagePct Decimal @default(10.00) @map("default_wastage_pct") @db.Decimal(5, 2)
+
+  /// Non-queried configuration only, per the JSONB rules in §5.5. Anything
+  /// that appears in a WHERE clause gets a real column.
+  settings Json @default("{}")
+
+  status TenantStatus @default(active)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  appUsers AppUser[]
+  visitors Visitor[]
+
+  @@map("tenant")
+}
+
+/// Named `app_user` because Supabase owns `auth.users`, and a table named
+/// `user` is a reserved-word trap in Postgres (§2.2).
+///
+/// `auth.users` holds credentials, email verification, MFA factors and
+/// sessions. This holds everything the application needs, keyed 1:1 by
+/// auth_user_id. We never write to auth.users and never store passwords.
+model AppUser {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// References auth.users.id. Nullable for imported contacts who never
+  /// logged in — a customer can exist in the CRM sense without an account,
+  /// which is what makes "accounts optional, never blocking" work.
+  authUserId String? @unique @map("auth_user_id") @db.Uuid
+
+  email    String  @db.Citext
+  /// E.164. WhatsApp is the primary conversion channel in this market.
+  phone    String?
+  fullName String? @map("full_name")
+
+  preferredLocale       String?                @map("preferred_locale")
+  preferredCurrency     String?                @map("preferred_currency") @db.Char(3)
+  measurementPreference MeasurementPreference? @map("measurement_preference")
+
+  /// Drives the default UX mode — Spec mode is on by default for contractors
+  /// (§2.5 of the UX blueprint).
+  userType UserType @map("user_type")
+
+  marketingOptIn Boolean       @default(false) @map("marketing_opt_in")
+  lastSeenAt     DateTime?     @map("last_seen_at") @db.Timestamptz(6)
+  status         AppUserStatus @default(active)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  /// Soft delete. The partial unique index below excludes deleted rows, so an
+  /// address can be reused after deletion without a collision.
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  visitors Visitor[]
+
+  // Tenant-scoped uniqueness, not global — §19.2.
+  // Declared here so `prisma migrate diff` stays clean; the partial WHERE
+  // clause is applied in SQL, which Prisma cannot express.
+  @@index([tenantId, email])
+  @@index([tenantId, userType, status])
+  @@map("app_user")
+}
+
+/// The anonymous identity — §2.3.
+///
+/// "Accounts are optional and never blocking" requires a first-class anonymous
+/// principal, not a nullable user_id scattered across every engagement table.
+/// Keying saved items, baskets and AI sessions on visitor rather than user is
+/// the decision that makes the entire guest experience work.
+model Visitor {
+  id       String @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// Set when a guest signs up or logs in. NEVER overwritten: the claim flow
+  /// re-parents the visitor's saved items, views and open quotes to the user,
+  /// and re-pointing this later would orphan that history.
+  appUserId String? @map("app_user_id") @db.Uuid
+
+  firstSeenAt DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  /// Attribution, captured once and never updated — first touch is the
+  /// question analytics actually needs answered.
+  firstReferrer String? @map("first_referrer")
+  firstUtm      Json?   @map("first_utm")
+
+  locale      String?
+  countryCode String? @map("country_code") @db.Char(2)
+
+  /// Cross-device merge trail. The older row points at the newer one and is
+  /// never deleted — analytics history depends on it (§2.3).
+  mergedIntoVisitorId String? @map("merged_into_visitor_id") @db.Uuid
+
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  appUser    AppUser?  @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  mergedInto Visitor?  @relation("VisitorMerge", fields: [mergedIntoVisitorId], references: [id], onDelete: SetNull)
+  mergedFrom Visitor[] @relation("VisitorMerge")
+
+  @@index([tenantId, lastSeenAt])
+  @@index([tenantId, appUserId])
+  @@map("visitor")
+}

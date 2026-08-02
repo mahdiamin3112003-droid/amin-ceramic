@@ -1,0 +1,5 @@
+// ANALYTICS — docs/03-database-design.md
+//
+// Placeholder. This domain's models land in Phase 1 with the full schema.
+// The file exists now so the split from §15.1 is established rather than
+// invented later, and so nobody has to guess where a model belongs.

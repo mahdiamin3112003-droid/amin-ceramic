@@ -1,0 +1,40 @@
+// AMIN CERAMIC — Prisma schema root
+//
+// Datasource, generator and extensions only. Models live in one file per
+// bounded domain, per docs/03-database-design.md §15.1, so the schema stays
+// navigable at the ~80 models it will reach by the end of Phase 1.
+//
+// WHAT PRISMA OWNS, AND WHAT IT DOES NOT (§15.2):
+//   Prisma  — tables, columns, relations, B-tree indexes
+//   SQL     — vector/halfvec columns, HNSW/GIN/GiST/partial/covering indexes,
+//             generated columns, triggers, RLS policies, check constraints
+// Those live in versioned migrations alongside Prisma's own.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions", "relationJoins"]
+}
+
+datasource db {
+  provider = "postgresql"
+
+  // Pooled connection (Supabase pgbouncer, transaction mode, port 6543).
+  // Everything at request time goes through here.
+  url = env("DATABASE_URL")
+
+  // Direct connection (port 5432). Migrations and the seed only — pgbouncer in
+  // transaction mode cannot run DDL or hold session state.
+  directUrl = env("DIRECT_URL")
+
+  // pgcrypto          gen_random_bytes, underpins uuid_generate_v7()
+  // citext            case-insensitive email and slug columns
+  // pg_trgm           fuzzy SKU and name search (Phase 2)
+  // unaccent          accent-insensitive search
+  // btree_gin         composite GIN indexes on the catalog
+  // pg_stat_statements query analysis
+  //
+  // `vector` and `pg_cron` are enabled in SQL in Phase 1, alongside the
+  // embedding and rollup tables that need them. Enabling an extension before
+  // anything uses it only adds something that can fail on a fresh environment.
+  extensions = [pgcrypto, citext, pg_trgm, unaccent, btree_gin, pg_stat_statements]
+}
