@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import type { Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
 
@@ -54,11 +56,25 @@ export async function withRequestContext<T>(
       await tx.$executeRaw`SELECT set_config('request.jwt.claims', ${jwtClaims}, true)`;
       return fn(tx);
     },
-    // Prisma's 5s default is tight for a page needing several repository
-    // calls (e.g. product detail + similar products + availability) against
-    // a remote pooler — 15s gives that headroom without holding a pooled
-    // connection open indefinitely.
-    { timeout: 15_000 },
+    {
+      // Prisma's 5s default is tight for a page needing several repository
+      // calls (e.g. product detail + similar products + availability) against
+      // a remote pooler — 15s gives that headroom without holding a pooled
+      // connection open indefinitely.
+      timeout: 15_000,
+
+      // How long to WAIT FOR A FREE CONNECTION before giving up. Prisma's
+      // 2s default is far too short here: `RUNTIME_DATABASE_URL` is a
+      // pgbouncer pool with `connection_limit=1`, so every transaction in a
+      // request is serialised behind the others — and Next renders a layout
+      // and its page CONCURRENTLY, so a page's reads genuinely do race the
+      // layout's (the site header's basket/wishlist counts) for that one
+      // connection. Sequencing awaits inside a single file cannot fix that;
+      // only letting the loser queue can. Found live: the homepage threw
+      // "Unable to start a transaction in the given time" (P2028) on three
+      // of its reads at once.
+      maxWait: 20_000,
+    },
   );
 }
 
@@ -82,8 +98,15 @@ export interface RequestContext {
  * Throws if no tenant is configured — every other use-case in this app
  * assumes one exists (v1 is single-tenant), so failing loudly here beats
  * every caller re-deriving a null-tenant fallback.
+ *
+ * Wrapped in React `cache()`: every use-case calls this before its own
+ * read, so an uncached version issues one `tenant.findFirst` PER USE-CASE
+ * — six on the homepage alone, each competing for the single pooled
+ * connection. `cache()` is request-scoped (not a cross-request cache), so
+ * this dedupes within one render pass and never leaks one visitor's
+ * resolved context into another's request.
  */
-export async function getRequestContext(): Promise<RequestContext> {
+export const getRequestContext = cache(async (): Promise<RequestContext> => {
   const tenant = await findActiveTenant();
   if (!tenant) {
     throw new Error("No active tenant configured");
@@ -95,4 +118,4 @@ export async function getRequestContext(): Promise<RequestContext> {
   const visitorId = secret ? await verifyVisitorCookie(cookieValue, secret) : null;
 
   return { tenantId: tenant.id, visitorId };
-}
+});

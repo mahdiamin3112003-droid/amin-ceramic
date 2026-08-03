@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none" role="img" aria-labelledby="amin-ceramic-title">
+  <title id="amin-ceramic-title">Amin Ceramic</title>
+
+  <defs>
+    <!-- Outer diamond: the full rotated rhombus, used to clip the marble veining
+         inside each triangle half so strokes never escape the mark. -->
+    <clipPath id="clip-diamond-left">
+      <path d="M200,95 L114,161 L200,227 Z"/>
+    </clipPath>
+    <clipPath id="clip-diamond-right">
+      <path d="M200,95 L286,161 L200,227 Z"/>
+    </clipPath>
+
+    <!-- Inner diamond: a smaller concentric rhombus that clips the mosaic grid,
+         producing the partial corner tiles seen in the source mark. -->
+    <clipPath id="clip-mosaic">
+      <path d="M200,112 L136,161 L200,210 L264,161 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- ============================================================
+       LAYER 1 — Badge circle (optional backing; the intro animation
+       does not require this layer — the diamond assembles on a plain
+       ground and later docks into the navbar without it).
+       ============================================================ -->
+  <g id="badge-circle">
+    <circle cx="200" cy="200" r="140" fill="#FFFFFF"/>
+  </g>
+
+  <!-- ============================================================
+       LAYER 2 — The diamond mark: two triangle halves split along
+       the vertical axis, navy left / cyan right, each with a subtle
+       marble crackle-vein texture clipped to its own half.
+       ============================================================ -->
+  <g id="diamond">
+
+    <g id="diamond-left">
+      <path id="diamond-left-fill" d="M200,95 L114,161 L200,227 Z" fill="#1E2C6E"/>
+      <g id="diamond-left-veining" clip-path="url(#clip-diamond-left)" stroke="#FFFFFF" stroke-width="0.6" stroke-linecap="round" fill="none" opacity="0.22">
+        <path d="M138,140 C144,148 141,156 148,161 C154,165 151,173 157,180"/>
+        <path d="M148,161 C143,166 136,167 132,175"/>
+        <path d="M130,180 C138,186 135,195 143,201 C149,205 146,213 153,219"/>
+        <path d="M143,201 C137,204 130,203 124,209"/>
+        <path d="M165,120 C170,126 168,133 174,138"/>
+        <path d="M155,205 C161,210 159,217 166,222 C171,226 168,233 174,238"/>
+        <path d="M120,155 C126,159 125,166 131,170"/>
+      </g>
+    </g>
+
+    <g id="diamond-right">
+      <path id="diamond-right-fill" d="M200,95 L286,161 L200,227 Z" fill="#5FC4E4"/>
+      <g id="diamond-right-veining" clip-path="url(#clip-diamond-right)" stroke="#FFFFFF" stroke-width="0.6" stroke-linecap="round" fill="none" opacity="0.28">
+        <path d="M245,133 C250,140 248,148 254,154 C259,159 256,167 262,173"/>
+        <path d="M254,154 C260,157 267,155 272,161"/>
+        <path d="M258,178 C264,184 262,192 269,197 C274,201 271,209 278,214"/>
+        <path d="M269,197 C275,199 282,197 287,202"/>
+        <path d="M228,118 C233,124 231,131 237,136"/>
+        <path d="M238,205 C244,210 242,217 249,222 C254,226 251,233 258,238"/>
+        <path d="M268,148 C273,152 274,159 280,163"/>
+      </g>
+    </g>
+
+  </g>
+
+  <!-- ============================================================
+       LAYER 3 — Mosaic band: 36 individually addressable tile
+       fragments, clipped to the inner diamond. Each tile is its own
+       element so the intro animation can fly them in independently.
+       ============================================================ -->
+  <g id="mosaic" clip-path="url(#clip-mosaic)">
+      <rect id="tile-01" x="155.05" y="116.05" width="13.90" height="13.90" fill="#141F52"/>
+      <rect id="tile-02" x="170.25" y="116.05" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-03" x="185.45" y="116.05" width="13.90" height="13.90" fill="#1E2C6E"/>
+      <rect id="tile-04" x="200.65" y="116.05" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-05" x="215.85" y="116.05" width="13.90" height="13.90" fill="#5FC4E4"/>
+      <rect id="tile-06" x="231.05" y="116.05" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-07" x="155.05" y="131.25" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-08" x="170.25" y="131.25" width="13.90" height="13.90" fill="#141F52"/>
+      <rect id="tile-09" x="185.45" y="131.25" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-10" x="200.65" y="131.25" width="13.90" height="13.90" fill="#3560B4"/>
+      <rect id="tile-11" x="215.85" y="131.25" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-12" x="231.05" y="131.25" width="13.90" height="13.90" fill="#CBE4F3"/>
+      <rect id="tile-13" x="155.05" y="146.45" width="13.90" height="13.90" fill="#141F52"/>
+      <rect id="tile-14" x="170.25" y="146.45" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-15" x="185.45" y="146.45" width="13.90" height="13.90" fill="#1E2C6E"/>
+      <rect id="tile-16" x="200.65" y="146.45" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-17" x="215.85" y="146.45" width="13.90" height="13.90" fill="#5FC4E4"/>
+      <rect id="tile-18" x="231.05" y="146.45" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-19" x="155.05" y="161.65" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-20" x="170.25" y="161.65" width="13.90" height="13.90" fill="#141F52"/>
+      <rect id="tile-21" x="185.45" y="161.65" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-22" x="200.65" y="161.65" width="13.90" height="13.90" fill="#3560B4"/>
+      <rect id="tile-23" x="215.85" y="161.65" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-24" x="231.05" y="161.65" width="13.90" height="13.90" fill="#CBE4F3"/>
+      <rect id="tile-25" x="155.05" y="176.85" width="13.90" height="13.90" fill="#141F52"/>
+      <rect id="tile-26" x="170.25" y="176.85" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-27" x="185.45" y="176.85" width="13.90" height="13.90" fill="#1E2C6E"/>
+      <rect id="tile-28" x="200.65" y="176.85" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-29" x="215.85" y="176.85" width="13.90" height="13.90" fill="#5FC4E4"/>
+      <rect id="tile-30" x="231.05" y="176.85" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-31" x="155.05" y="192.05" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-32" x="170.25" y="192.05" width="13.90" height="13.90" fill="#141F52"/>
+      <rect id="tile-33" x="185.45" y="192.05" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-34" x="200.65" y="192.05" width="13.90" height="13.90" fill="#3560B4"/>
+      <rect id="tile-35" x="215.85" y="192.05" width="13.90" height="13.90" fill="#FFFFFF"/>
+      <rect id="tile-36" x="231.05" y="192.05" width="13.90" height="13.90" fill="#CBE4F3"/>
+  </g>
+
+  <!-- ============================================================
+       LAYER 4 — Wordmark. Small-caps serif set: full-height A / C,
+       reduced-height caps for the remainder, generous tracking.
+       Uses the design system's display face with a serif fallback
+       stack so it renders correctly before web fonts load.
+       ============================================================ -->
+  <g id="wordmark" fill="#141F52" font-family="Marcellus, 'Trajan Pro', Georgia, 'Times New Roman', serif">
+    <text x="200" y="262" text-anchor="middle" letter-spacing="1.5">
+      <tspan font-size="30">A</tspan><tspan font-size="21">MIN</tspan><tspan font-size="21" letter-spacing="6"> </tspan><tspan font-size="30">C</tspan><tspan font-size="21">ERAMIC</tspan>
+    </text>
+  </g>
+
+</svg>

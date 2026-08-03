@@ -79,6 +79,16 @@ export interface ProductListingPage {
   readonly facets: Facets;
 }
 
+/** A manufacturer's product family ("Calacatta Series") — docs/03-database-design.md §3.2. */
+export interface Collection {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly heroMediaId: string | null;
+  readonly isFeatured: boolean;
+}
+
 export interface SearchSuggestion {
   readonly productId: string;
   readonly sku: string;

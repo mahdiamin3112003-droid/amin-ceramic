@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import type { QuoteBasket } from "@/domain/quote/entity";
 import { getBasket as getBasketRepo } from "@/infrastructure/db/repositories/quote-repository";
 import {
@@ -14,8 +16,12 @@ export interface GetBasketResult {
  * `/basket` and `/api/v1/basket` (client hydration for the header badge).
  * No visitor cookie yet means no basket yet — a designed empty state, not
  * an error (§18.3).
+ *
+ * `cache()`d for the same reason as `listWishlistProductIds`: the site
+ * header needs the count on every page, and `/basket` needs the basket
+ * itself — request-scoped dedupe keeps that to one transaction.
  */
-export async function getBasket(): Promise<GetBasketResult> {
+export const getBasket = cache(async (): Promise<GetBasketResult> => {
   try {
     const { tenantId, visitorId } = await getRequestContext();
     if (!visitorId) return { basket: null, error: null };
@@ -31,4 +37,4 @@ export async function getBasket(): Promise<GetBasketResult> {
       error: cause instanceof Error ? cause.message : "unknown",
     };
   }
-}
+});

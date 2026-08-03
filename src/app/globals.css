@@ -803,3 +803,74 @@ html[lang="ar"] {
     background-color: var(--color-stone-100) !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Assembly intro — first-paint gating.
+
+   The overlay MUST cover the page before the browser's first paint, or the
+   homepage flashes into view and the intro stops being an intro. React
+   cannot do that: a `useEffect` runs after hydration, which is after paint.
+
+   So the decision is made by a tiny blocking script in <head> (see
+   src/components/motion/intro-gate.tsx), which stamps `data-intro` on
+   <html> during HTML parse. These rules act on that stamp, so the correct
+   state is painted on the very first frame.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Before the script runs (and for no-JS), assume no intro: the site must
+   never be left hidden behind an overlay that will never animate. */
+#assembly-intro {
+  display: none;
+
+  /* During the docking flight the overlay's opaque ground dissolves,
+     revealing the live page beneath while the mark keeps flying above it
+     (docs §4.2 t=3.9: "the hero content beneath cross-fades up"
+     simultaneously). `opacity` is in the list only for the
+     no-flip-target fallback fade — the normal path never animates it. */
+  transition:
+    background-color 1100ms var(--ease-in-out-quart),
+    opacity 320ms var(--ease-exit);
+}
+
+html[data-intro="playing"] #assembly-intro {
+  display: flex;
+}
+
+#assembly-intro.intro-docking {
+  background-color: transparent;
+}
+
+/* The marble ground dissolves with the overlay's own background during the
+   docking flight, revealing the hero's marble beneath — the two surfaces
+   are the same material, so the handoff reads as one continuous space
+   rather than a cut between two screens. */
+#assembly-intro .intro-ground {
+  opacity: 1;
+
+  /* Slower than the flip itself, and eased at both ends: the homepage
+     surfaces gradually beneath the descending mark instead of snapping in
+     behind it. This is the difference between a reveal and a cut. */
+  transition: opacity 1100ms var(--ease-in-out-quart);
+}
+
+#assembly-intro.intro-docking .intro-ground {
+  opacity: 0;
+}
+
+/* The page itself is NEVER opacity-gated: it paints at full opacity beneath
+   the overlay's opaque ground, so the hero remains the LCP element
+   (docs/01 §4.3 mitigation 1 — the overlay covers the page, it does not
+   suppress its paint). Interaction alone is held back. */
+html[data-intro="playing"] #site-shell {
+  pointer-events: none;
+}
+
+/* Only the navbar's logo mark is hidden while the intro owns the mark.
+   Its box stays reserved (opacity, not display) → zero layout shift, and
+   the intro's flip has a real, measurable target. NO transition here: the
+   reveal must be instantaneous in the same frame the intro mark lands on
+   top of it — that pixel-aligned swap is what makes the docking read as
+   the same object coming to rest rather than a cross-fade. */
+html[data-intro="playing"] #site-logo-mark {
+  opacity: 0;
+}

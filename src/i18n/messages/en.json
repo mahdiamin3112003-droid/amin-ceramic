@@ -10,7 +10,27 @@
       "label": "Language",
       "en": "English",
       "ar": "Arabic"
-    }
+    },
+    "skipIntro": "Skip"
+  },
+  "nav": {
+    "home": "Amin Ceramic — home",
+    "primary": "Primary",
+    "products": "Products",
+    "collections": "Collections",
+    "search": "Search",
+    "wishlistCount": "{count, plural, =0 {Wishlist} one {Wishlist, 1 item} other {Wishlist, # items}}",
+    "basketCount": "{count, plural, =0 {Basket} one {Basket, 1 item} other {Basket, # items}}",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
+  },
+  "footer": {
+    "label": "Footer",
+    "products": "Products",
+    "collections": "Collections",
+    "basket": "Basket",
+    "wishlist": "Wishlist",
+    "copyright": "© {year} Amin Ceramic"
   },
   "catalog": {
     "title": "Porcelain & ceramic tile",
@@ -158,6 +178,36 @@
       "boxesPerPallet": "Boxes / pallet",
       "originCountry": "Origin country"
     }
+  },
+  "home": {
+    "heroEyebrow": "Porcelain & ceramic · Lebanon",
+    "heroTitle": "Surfaces that hold their line.",
+    "heroLede": "Porcelain and ceramic for Lebanese homes, studios and sites.",
+    "heroCta": "Explore the catalogue",
+    "heroSecondaryCta": "Browse collections",
+    "scrollHint": "Scroll to explore",
+    "featuredEyebrow": "Featured collection",
+    "viewCollection": "View collection",
+    "inStockTitle": "In stock now",
+    "viewAll": "View all",
+    "showroomsTitle": "Visit a showroom",
+    "showroomsLede": "Tile is chosen in person. Come see the full range, and take samples home."
+  },
+  "collections": {
+    "title": "Collections",
+    "subtitle": "Product families — one design language across formats and finishes.",
+    "empty": "No collections published yet.",
+    "loadError": "We couldn't load collections right now. Please try again shortly.",
+    "productsInCollection": "In this collection",
+    "filterInCatalogue": "Filter in catalogue",
+    "noProducts": "No products in this collection yet.",
+    "browseAll": "Browse all products"
+  },
+  "wishlist": {
+    "title": "Wishlist",
+    "empty": "You haven't saved any tiles yet.",
+    "browseProducts": "Browse products",
+    "loadError": "We couldn't load your wishlist right now. Please try again shortly."
   },
   "quote": {
     "basket": {

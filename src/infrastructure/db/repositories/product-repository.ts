@@ -599,6 +599,28 @@ export async function getSimilarProducts(
     .filter((p): p is ProductSummary => p !== null);
 }
 
+/** Batched lookup by id, order preserved — the wishlist page's data source. */
+export async function getProductSummariesByIds(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  locale: string,
+  ids: readonly string[],
+): Promise<readonly ProductSummary[]> {
+  if (ids.length === 0) return [];
+
+  const rows = await tx.product.findMany({
+    where: { tenantId, id: { in: [...ids] }, status: "published", deletedAt: null },
+    include: summaryInclude(locale),
+  });
+
+  const bySummary = new Map(rows.map((row) => [row.id, row]));
+  return ids
+    .map((id) => bySummary.get(id))
+    .filter((row): row is (typeof rows)[number] => row !== undefined)
+    .map((row) => toSummary(row, locale))
+    .filter((p): p is ProductSummary => p !== null);
+}
+
 /** docs/02-ux-blueprint.md §3.3 item 12: "From the same collection". */
 export async function getSameCollectionProducts(
   tx: Prisma.TransactionClient,
