@@ -12,6 +12,235 @@
       "ar": "Arabic"
     }
   },
+  "catalog": {
+    "title": "Porcelain & ceramic tile",
+    "subtitle": "Filter by look, format and finish, or search by SKU.",
+    "loadError": "We couldn't load the catalogue right now. Please try again shortly.",
+    "filters": {
+      "label": "Filters",
+      "colour": "Colour",
+      "look": "Look",
+      "finish": "Finish",
+      "material": "Material",
+      "brand": "Brand",
+      "slipRating": "Slip rating",
+      "price": "Price",
+      "availability": "Availability",
+      "inStockOnly": "In stock only"
+    },
+    "toolbar": {
+      "resultCount": "{count, plural, =0 {No products} one {# product} other {# products}}",
+      "sortLabel": "Sort",
+      "sort": {
+        "relevance": "Relevance",
+        "price_asc": "Price: low to high",
+        "price_desc": "Price: high to low",
+        "newest": "Newest",
+        "name_asc": "Name A–Z"
+      },
+      "clearAll": "Clear all"
+    },
+    "card": {
+      "new": "New",
+      "priceOnRequest": "Price on request",
+      "stock": {
+        "in_stock": "In stock",
+        "low_stock": "Low stock",
+        "out_of_stock": "Out of stock",
+        "on_order": "On order"
+      },
+      "addToWishlist": "Add to wishlist",
+      "removeFromWishlist": "Remove from wishlist",
+      "addToBasket": "Add to basket",
+      "addingToBasket": "Adding to basket",
+      "addedToBasket": "Added to basket",
+      "addToBasketFailed": "Couldn't add to basket. Please try again.",
+      "addToCompare": "Add to compare",
+      "removeFromCompare": "Remove from compare",
+      "compareFull": "You can compare up to 4 products at a time"
+    },
+    "compareTray": {
+      "selectedCount": "{count, plural, =1 {1 selected} other {# selected}}",
+      "clear": "Clear",
+      "compare": "Compare →"
+    },
+    "grid": {
+      "empty": "No products match these filters.",
+      "loadMore": "Load more",
+      "loading": "Loading more products"
+    },
+    "pdp": {
+      "breadcrumb": {
+        "home": "Home",
+        "products": "Products"
+      },
+      "priceOnRequest": "Price on request",
+      "loadError": "We couldn't load this product right now. Please try again shortly.",
+      "completeTheLook": "Complete the look",
+      "similarTiles": "Similar tiles",
+      "sameCollection": "From the same collection",
+      "facts": {
+        "format": "Format",
+        "thickness": "Thickness",
+        "finish": "Finish",
+        "indoorOutdoor": "Suitable for",
+        "both": "Indoor & outdoor",
+        "outdoorOnly": "Outdoor",
+        "indoorOnly": "Indoor"
+      },
+      "stock": {
+        "in_stock": "In stock",
+        "low_stock": "Low stock",
+        "out_of_stock": "Out of stock",
+        "on_order": "On order"
+      }
+    },
+    "calculator": {
+      "heading": "How much do I need?",
+      "areaLabel": "Room area (m²)",
+      "areaHelper": "e.g. 8.2",
+      "wastageLabel": "Wastage",
+      "wastageDefault": "default applied",
+      "error": "Couldn't calculate right now. Please try again.",
+      "areaNeeded": "Area needed",
+      "boxes": "Boxes",
+      "weight": "Weight",
+      "estimatedTotal": "Estimated total",
+      "addToBasket": "Add to basket",
+      "addingToBasket": "Adding to basket",
+      "addedToBasket": "Added to basket",
+      "addToBasketFailed": "Couldn't add to basket. Please try again."
+    },
+    "search": {
+      "title": "Search",
+      "placeholder": "Search by name or SKU",
+      "prompt": "Start typing to search the catalogue.",
+      "loadError": "We couldn't load search results right now. Please try again shortly."
+    },
+    "compare": {
+      "title": "Compare tiles",
+      "needMore": "Select at least two products to compare.",
+      "groups": {
+        "dimensions": "Dimensions",
+        "material": "Material",
+        "surface": "Surface",
+        "performance": "Performance",
+        "packaging": "Packaging",
+        "price": "Price"
+      }
+    },
+    "specs": {
+      "heading": "Specifications",
+      "dimensions": "Dimensions",
+      "format": "Format",
+      "thickness": "Thickness",
+      "rectified": "Rectified",
+      "yes": "Yes",
+      "no": "No",
+      "material": "Material",
+      "materialType": "Material",
+      "colour": "Colour",
+      "surface": "Surface",
+      "finish": "Finish",
+      "look": "Look",
+      "shadeVariation": "Shade variation",
+      "performance": "Performance",
+      "slipRating": "Slip rating",
+      "peiClass": "PEI class",
+      "waterAbsorption": "Water absorption",
+      "frostResistant": "Frost resistant",
+      "indoor": "Indoor",
+      "outdoor": "Outdoor",
+      "packaging": "Packaging",
+      "piecesPerBox": "Pieces / box",
+      "m2PerBox": "m² / box",
+      "kgPerBox": "kg / box",
+      "boxesPerPallet": "Boxes / pallet",
+      "originCountry": "Origin country"
+    }
+  },
+  "quote": {
+    "basket": {
+      "title": "Your basket",
+      "empty": "Your basket is empty.",
+      "browseProducts": "Browse products",
+      "unassigned": "Unassigned",
+      "quantityLabel": "Quantity (m²)",
+      "boxesAbbr": "bx",
+      "updating": "Updating",
+      "removeItem": "Remove item",
+      "updateFailed": "Couldn't update this item. Please try again.",
+      "removeFailed": "Couldn't remove this item. Please try again.",
+      "totalWeight": "Total weight",
+      "subtotal": "Subtotal",
+      "printLink": "Print / save as PDF",
+      "requestQuote": "Request a quote",
+      "loadError": "We couldn't load your basket right now. Please try again shortly."
+    },
+    "request": {
+      "title": "Request a quote",
+      "subtitle": "Tell us how to reach you and we'll follow up with pricing and availability.",
+      "nameLabel": "Full name",
+      "emailLabel": "Email",
+      "phoneLabel": "Phone",
+      "phoneHelper": "Include country code, e.g. +961",
+      "companyLabel": "Company",
+      "notesLabel": "Notes",
+      "nameRequired": "Please enter your name.",
+      "contactRequired": "Please provide an email or phone number.",
+      "submit": "Send request",
+      "submitting": "Sending",
+      "submitFailed": "Couldn't send your request. Please try again."
+    },
+    "sent": {
+      "title": "Request received",
+      "body": "We'll follow up shortly with pricing and availability.",
+      "reference": "Reference",
+      "continueShopping": "Continue shopping",
+      "whatsappButton": "WhatsApp us about this"
+    },
+    "print": {
+      "title": "Amin Ceramic — Quote basket",
+      "reference": "Reference",
+      "item": "Item",
+      "quantity": "Quantity",
+      "boxes": "Boxes",
+      "total": "Total",
+      "totalWeight": "Total weight",
+      "subtotal": "Subtotal",
+      "unassigned": "Unassigned",
+      "empty": "Your basket is empty."
+    },
+    "sample": {
+      "trigger": "Order a sample",
+      "title": "Order a sample",
+      "description": "We'll get a sample ready for you — pick up in showroom or have it shipped.",
+      "sampleTypeLabel": "Sample type",
+      "sampleType": {
+        "chip": "Chip",
+        "full_tile": "Full tile",
+        "board": "Sample board"
+      },
+      "fulfilmentLabel": "How would you like to receive it?",
+      "fulfilment": {
+        "collect": "Collect in showroom",
+        "ship": "Ship to me"
+      },
+      "locationLabel": "Showroom",
+      "addressLabel": "Address",
+      "cityLabel": "City",
+      "countryLabel": "Country code",
+      "locationRequired": "Please choose a showroom.",
+      "addressRequired": "Please enter a shipping address.",
+      "submit": "Request sample",
+      "submitting": "Sending",
+      "submitted": "Sample request sent",
+      "sampleFailed": "Couldn't request a sample right now — you may have reached the limit of 3 samples per 30 days. Please try again later.",
+      "confirmedTitle": "Sample requested",
+      "confirmedBody": "We'll be in touch to confirm pickup or shipping details.",
+      "reference": "Reference"
+    }
+  },
   "foundation": {
     "eyebrow": "Phase 0 · Foundation",
     "title": "Surfaces that hold their line.",

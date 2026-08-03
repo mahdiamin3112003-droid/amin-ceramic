@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
+import { Toaster } from "@/components/ui/sonner";
 import { directionFor, localeHtmlLang, routing } from "@/i18n/routing";
 import { fontVariables } from "@/lib/fonts";
 import { alternatesFor, canonicalFor, siteUrl } from "@/lib/seo/site";
@@ -82,6 +83,7 @@ export default async function LocaleLayout({
             {t("skipToContent")}
           </a>
           {children}
+          <Toaster />
         </NextIntlClientProvider>
       </body>
     </html>

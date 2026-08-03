@@ -12,6 +12,235 @@
       "ar": "العربية"
     }
   },
+  "catalog": {
+    "title": "بلاط البورسلان والسيراميك",
+    "subtitle": "صفِّ حسب المظهر والمقاس والتشطيب، أو ابحث برمز المنتج.",
+    "loadError": "تعذّر تحميل الكتالوج الآن. يرجى المحاولة مجددًا بعد قليل.",
+    "filters": {
+      "label": "عوامل التصفية",
+      "colour": "اللون",
+      "look": "المظهر",
+      "finish": "التشطيب",
+      "material": "الخامة",
+      "brand": "العلامة التجارية",
+      "slipRating": "تصنيف مقاومة الانزلاق",
+      "price": "السعر",
+      "availability": "التوفر",
+      "inStockOnly": "المتوفر فقط"
+    },
+    "toolbar": {
+      "resultCount": "{count, plural, =0 {لا منتجات} one {منتج واحد} two {منتجان} few {# منتجات} many {# منتجًا} other {# منتج}}",
+      "sortLabel": "الترتيب",
+      "sort": {
+        "relevance": "الأكثر صلة",
+        "price_asc": "السعر: من الأقل إلى الأعلى",
+        "price_desc": "السعر: من الأعلى إلى الأقل",
+        "newest": "الأحدث",
+        "name_asc": "الاسم أ–ي"
+      },
+      "clearAll": "مسح الكل"
+    },
+    "card": {
+      "new": "جديد",
+      "priceOnRequest": "السعر عند الطلب",
+      "stock": {
+        "in_stock": "متوفر",
+        "low_stock": "كمية محدودة",
+        "out_of_stock": "غير متوفر",
+        "on_order": "قيد الطلب"
+      },
+      "addToWishlist": "إضافة إلى المفضلة",
+      "removeFromWishlist": "إزالة من المفضلة",
+      "addToBasket": "إضافة إلى السلة",
+      "addingToBasket": "جارٍ الإضافة إلى السلة",
+      "addedToBasket": "تمت الإضافة إلى السلة",
+      "addToBasketFailed": "تعذّرت الإضافة إلى السلة. يرجى المحاولة مجددًا.",
+      "addToCompare": "إضافة إلى المقارنة",
+      "removeFromCompare": "إزالة من المقارنة",
+      "compareFull": "يمكنك مقارنة حتى 4 منتجات في المرة الواحدة"
+    },
+    "compareTray": {
+      "selectedCount": "{count, plural, =1 {عنصر واحد محدد} two {عنصران محددان} few {# عناصر محددة} many {# عنصرًا محددًا} other {# عنصر محدد}}",
+      "clear": "مسح",
+      "compare": "قارن ←"
+    },
+    "grid": {
+      "empty": "لا توجد منتجات مطابقة لهذه الفلاتر.",
+      "loadMore": "عرض المزيد",
+      "loading": "جارٍ تحميل المزيد من المنتجات"
+    },
+    "pdp": {
+      "breadcrumb": {
+        "home": "الرئيسية",
+        "products": "المنتجات"
+      },
+      "priceOnRequest": "السعر عند الطلب",
+      "loadError": "تعذّر تحميل هذا المنتج الآن. يرجى المحاولة مجددًا بعد قليل.",
+      "completeTheLook": "أكمل المظهر",
+      "similarTiles": "بلاط مشابه",
+      "sameCollection": "من نفس المجموعة",
+      "facts": {
+        "format": "المقاس",
+        "thickness": "السماكة",
+        "finish": "التشطيب",
+        "indoorOutdoor": "مناسب لـ",
+        "both": "داخلي وخارجي",
+        "outdoorOnly": "خارجي",
+        "indoorOnly": "داخلي"
+      },
+      "stock": {
+        "in_stock": "متوفر",
+        "low_stock": "كمية محدودة",
+        "out_of_stock": "غير متوفر",
+        "on_order": "قيد الطلب"
+      }
+    },
+    "calculator": {
+      "heading": "كم أحتاج؟",
+      "areaLabel": "مساحة الغرفة (م²)",
+      "areaHelper": "مثال: 8.2",
+      "wastageLabel": "الهدر",
+      "wastageDefault": "القيمة الافتراضية مطبّقة",
+      "error": "تعذّر الحساب الآن. يرجى المحاولة مجددًا.",
+      "areaNeeded": "المساحة المطلوبة",
+      "boxes": "الصناديق",
+      "weight": "الوزن",
+      "estimatedTotal": "الإجمالي التقديري",
+      "addToBasket": "إضافة إلى السلة",
+      "addingToBasket": "جارٍ الإضافة إلى السلة",
+      "addedToBasket": "تمت الإضافة إلى السلة",
+      "addToBasketFailed": "تعذّرت الإضافة إلى السلة. يرجى المحاولة مجددًا."
+    },
+    "search": {
+      "title": "بحث",
+      "placeholder": "ابحث بالاسم أو رمز المنتج",
+      "prompt": "ابدأ الكتابة للبحث في الكتالوج.",
+      "loadError": "تعذّر تحميل نتائج البحث الآن. يرجى المحاولة مجددًا بعد قليل."
+    },
+    "compare": {
+      "title": "مقارنة البلاط",
+      "needMore": "اختر منتجَين على الأقل للمقارنة.",
+      "groups": {
+        "dimensions": "الأبعاد",
+        "material": "الخامة",
+        "surface": "السطح",
+        "performance": "الأداء",
+        "packaging": "التعبئة",
+        "price": "السعر"
+      }
+    },
+    "specs": {
+      "heading": "المواصفات",
+      "dimensions": "الأبعاد",
+      "format": "المقاس",
+      "thickness": "السماكة",
+      "rectified": "مصقول الحواف",
+      "yes": "نعم",
+      "no": "لا",
+      "material": "الخامة",
+      "materialType": "الخامة",
+      "colour": "اللون",
+      "surface": "السطح",
+      "finish": "التشطيب",
+      "look": "المظهر",
+      "shadeVariation": "تفاوت التظليل",
+      "performance": "الأداء",
+      "slipRating": "تصنيف مقاومة الانزلاق",
+      "peiClass": "تصنيف PEI",
+      "waterAbsorption": "امتصاص الماء",
+      "frostResistant": "مقاوم للصقيع",
+      "indoor": "داخلي",
+      "outdoor": "خارجي",
+      "packaging": "التعبئة",
+      "piecesPerBox": "قطع / صندوق",
+      "m2PerBox": "م² / صندوق",
+      "kgPerBox": "كغ / صندوق",
+      "boxesPerPallet": "صناديق / منصة نقالة",
+      "originCountry": "بلد المنشأ"
+    }
+  },
+  "quote": {
+    "basket": {
+      "title": "سلّتك",
+      "empty": "سلّتك فارغة.",
+      "browseProducts": "تصفّح المنتجات",
+      "unassigned": "غير مخصّص",
+      "quantityLabel": "الكمية (م²)",
+      "boxesAbbr": "صندوق",
+      "updating": "جارٍ التحديث",
+      "removeItem": "إزالة العنصر",
+      "updateFailed": "تعذّر تحديث هذا العنصر. يرجى المحاولة مجددًا.",
+      "removeFailed": "تعذّرت إزالة هذا العنصر. يرجى المحاولة مجددًا.",
+      "totalWeight": "الوزن الإجمالي",
+      "subtotal": "المجموع الفرعي",
+      "printLink": "طباعة / حفظ كـ PDF",
+      "requestQuote": "طلب عرض سعر",
+      "loadError": "تعذّر تحميل سلّتك الآن. يرجى المحاولة مجددًا بعد قليل."
+    },
+    "request": {
+      "title": "طلب عرض سعر",
+      "subtitle": "أخبرنا كيف نتواصل معك وسنتابع بالأسعار والتوفر.",
+      "nameLabel": "الاسم الكامل",
+      "emailLabel": "البريد الإلكتروني",
+      "phoneLabel": "الهاتف",
+      "phoneHelper": "أدرج رمز البلد، مثال: +961",
+      "companyLabel": "الشركة",
+      "notesLabel": "ملاحظات",
+      "nameRequired": "يرجى إدخال اسمك.",
+      "contactRequired": "يرجى تقديم بريد إلكتروني أو رقم هاتف.",
+      "submit": "إرسال الطلب",
+      "submitting": "جارٍ الإرسال",
+      "submitFailed": "تعذّر إرسال طلبك. يرجى المحاولة مجددًا."
+    },
+    "sent": {
+      "title": "تم استلام الطلب",
+      "body": "سنتابع معك قريبًا بالأسعار والتوفر.",
+      "reference": "الرقم المرجعي",
+      "continueShopping": "متابعة التسوق",
+      "whatsappButton": "تواصل معنا عبر واتساب"
+    },
+    "print": {
+      "title": "أمين سيراميك — سلّة عرض السعر",
+      "reference": "الرقم المرجعي",
+      "item": "العنصر",
+      "quantity": "الكمية",
+      "boxes": "الصناديق",
+      "total": "الإجمالي",
+      "totalWeight": "الوزن الإجمالي",
+      "subtotal": "المجموع الفرعي",
+      "unassigned": "غير مخصّص",
+      "empty": "سلّتك فارغة."
+    },
+    "sample": {
+      "trigger": "طلب عيّنة",
+      "title": "طلب عيّنة",
+      "description": "سنجهّز لك عيّنة — استلمها من المعرض أو اطلب شحنها إليك.",
+      "sampleTypeLabel": "نوع العيّنة",
+      "sampleType": {
+        "chip": "قصاصة",
+        "full_tile": "بلاطة كاملة",
+        "board": "لوحة عيّنات"
+      },
+      "fulfilmentLabel": "كيف تودّ استلامها؟",
+      "fulfilment": {
+        "collect": "استلام من المعرض",
+        "ship": "شحن إليّ"
+      },
+      "locationLabel": "المعرض",
+      "addressLabel": "العنوان",
+      "cityLabel": "المدينة",
+      "countryLabel": "رمز البلد",
+      "locationRequired": "يرجى اختيار معرض.",
+      "addressRequired": "يرجى إدخال عنوان الشحن.",
+      "submit": "طلب العيّنة",
+      "submitting": "جارٍ الإرسال",
+      "submitted": "تم إرسال طلب العيّنة",
+      "sampleFailed": "تعذّر طلب عيّنة الآن — ربما بلغت الحد الأقصى 3 عيّنات كل 30 يومًا. يرجى المحاولة لاحقًا.",
+      "confirmedTitle": "تم طلب العيّنة",
+      "confirmedBody": "سنتواصل معك لتأكيد تفاصيل الاستلام أو الشحن.",
+      "reference": "الرقم المرجعي"
+    }
+  },
   "foundation": {
     "eyebrow": "المرحلة صفر · الأساس",
     "title": "أسطح تحافظ على خطّها.",

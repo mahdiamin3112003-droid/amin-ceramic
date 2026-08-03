@@ -69,6 +69,7 @@ async function main() {
   await seedLocations(tenant.id);
   const taxonomy = await seedTaxonomy(tenant.id);
   await seedProducts(tenant.id, taxonomy);
+  await seedProductRelations(tenant.id);
 }
 
 /**
@@ -82,6 +83,9 @@ const LOCATIONS = [
     city: "Rmeileh",
     region: "Mount Lebanon",
     countryCode: "LB",
+    phone: "+961 7 123456",
+    whatsapp: "+961 71 234567",
+    email: "rmeileh@aminceramic.com",
   },
   {
     slug: "choukine",
@@ -89,6 +93,9 @@ const LOCATIONS = [
     city: "Choukine",
     region: "South Lebanon",
     countryCode: "LB",
+    phone: "+961 7 654321",
+    whatsapp: "+961 76 543210",
+    email: "choukine@aminceramic.com",
   },
 ] as const;
 
@@ -107,7 +114,14 @@ async function seedLocations(tenantId: string) {
     if (existing) {
       await prisma.location.update({
         where: { id: existing.id },
-        data: { name: loc.name, city: loc.city, region: loc.region },
+        data: {
+          name: loc.name,
+          city: loc.city,
+          region: loc.region,
+          phone: loc.phone,
+          whatsapp: loc.whatsapp,
+          email: loc.email,
+        },
       });
     } else {
       await prisma.location.create({
@@ -121,6 +135,9 @@ async function seedLocations(tenantId: string) {
           city: loc.city,
           region: loc.region,
           countryCode: loc.countryCode,
+          phone: loc.phone,
+          whatsapp: loc.whatsapp,
+          email: loc.email,
           isActive: true,
         },
       });
@@ -698,6 +715,115 @@ async function seedProducts(tenantId: string, tax: Taxonomy) {
 
   console.log(
     `seeded ${String(count)} products (${String(DESIGNS.length)} designs × ${String(FORMATS.length)} formats) with EN+AR translations, prices across ${String(PRICE_TIERS.length)} tiers, and stock lots at both locations`,
+  );
+}
+
+/**
+ * `product_relation` rows — without these, the PDP's "Similar tiles" and
+ * "Complete the look" rails (docs/02-ux-blueprint.md §3.3 items 10–11) have
+ * nothing to render, which would leave that part of Phase 2 unverifiable
+ * against real data. Two relation shapes, both automatic (`is_automatic:
+ * true`, since nothing here comes from a curator):
+ *
+ * - `same_look_different_format`: within a design, every format variant
+ *   linked to every other — genuinely the same look, a different size.
+ * - `complete_the_look`: across designs that share a `colorFamily`, the
+ *   600×600 matte variant of each linked to the others'. This pairing is a
+ *   placeholder in the same spirit as the design catalog itself (no real
+ *   trim/accessory SKUs exist yet) — flagged rather than passed off as curated data.
+ */
+async function seedProductRelations(tenantId: string) {
+  const products = await prisma.product.findMany({
+    where: { tenantId },
+    select: {
+      id: true,
+      sku: true,
+      widthMm: true,
+      heightMm: true,
+      colorFamilyId: true,
+    },
+  });
+
+  const upsertRelation = (
+    productId: string,
+    relatedProductId: string,
+    relationType: "same_look_different_format" | "complete_the_look",
+    rank: number,
+  ) =>
+    prisma.productRelation.upsert({
+      where: {
+        productId_relatedProductId_relationType: {
+          productId,
+          relatedProductId,
+          relationType,
+        },
+      },
+      update: {},
+      create: {
+        productId,
+        relatedProductId,
+        relationType,
+        rank,
+        isAutomatic: true,
+      },
+    });
+
+  let sameFormatCount = 0;
+  for (const design of DESIGNS) {
+    const variants = products.filter((p) =>
+      p.sku.startsWith(design.key.toUpperCase()),
+    );
+    for (const source of variants) {
+      let rank = 0;
+      for (const target of variants) {
+        if (source.id === target.id) continue;
+        await upsertRelation(
+          source.id,
+          target.id,
+          "same_look_different_format",
+          rank,
+        );
+        rank++;
+        sameFormatCount++;
+      }
+    }
+  }
+
+  // The 600×600 matte variant is always the first FORMATS entry, so its SKU
+  // always ends in the first format's finish — matched by suffix rather than
+  // re-deriving the SKU template.
+  const anchorSuffix = `${String(FORMATS[0].widthMm)}X${String(FORMATS[0].heightMm)}-${FORMATS[0].finish.toUpperCase()}`;
+  const designsByColorFamily = new Map<string, (typeof DESIGNS)[number][]>();
+  for (const design of DESIGNS) {
+    const list = designsByColorFamily.get(design.colorFamily) ?? [];
+    list.push(design);
+    designsByColorFamily.set(design.colorFamily, list);
+  }
+
+  let completeTheLookCount = 0;
+  for (const group of designsByColorFamily.values()) {
+    if (group.length < 2) continue;
+    const anchors = group
+      .map((design) =>
+        products.find(
+          (p) => p.sku === `${design.key.toUpperCase()}-${anchorSuffix}`,
+        ),
+      )
+      .filter((p): p is (typeof products)[number] => p !== undefined);
+
+    for (const source of anchors) {
+      let rank = 0;
+      for (const target of anchors) {
+        if (source.id === target.id) continue;
+        await upsertRelation(source.id, target.id, "complete_the_look", rank);
+        rank++;
+        completeTheLookCount++;
+      }
+    }
+  }
+
+  console.log(
+    `seeded ${String(sameFormatCount)} same_look_different_format and ${String(completeTheLookCount)} complete_the_look product relations`,
   );
 }
 

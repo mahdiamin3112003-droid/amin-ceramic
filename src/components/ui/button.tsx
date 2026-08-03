@@ -140,10 +140,29 @@ export function Button({
   children,
   ...props
 }: ButtonProps) {
-  const Comp = asChild ? Slot.Root : "button";
+  // `Slot.Root` (Radix) requires exactly one element child — it clones its
+  // child and merges props/ref onto it, which only makes sense for a single
+  // target element. `asChild` therefore delegates entirely to that child:
+  // the icon/loading decoration below is Button's own chrome and has nowhere
+  // sensible to render on someone else's element, so it's skipped rather
+  // than smuggled in as extra Slot children (which throws: "Slot failed to
+  // slot onto its children. Expected a single React element child").
+  if (asChild) {
+    return (
+      <Slot.Root
+        data-slot="button"
+        data-variant={variant}
+        data-size={size}
+        className={cn(buttonVariants({ variant, size, iconOnly }), className)}
+        {...props}
+      >
+        {children}
+      </Slot.Root>
+    );
+  }
 
   return (
-    <Comp
+    <button
       data-slot="button"
       data-variant={variant}
       data-size={size}
@@ -165,7 +184,7 @@ export function Button({
           {loadingLabel}
         </span>
       ) : null}
-    </Comp>
+    </button>
   );
 }
 
