@@ -502,6 +502,34 @@ html[lang="ar"] {
   text-transform: uppercase;
 }
 
+/* --------------------------------------------------------------------------
+   The admin auth screens' primary action.
+
+   A custom utility rather than `shadow-[…]` in the component, because a
+   Tailwind arbitrary shadow carrying MULTIPLE comma-separated layers does not
+   survive: the value reaches `--tw-shadow` but the colours are dropped, and
+   the computed result is four fully transparent layers. Verified in the
+   browser — the button had no shadow at all.
+
+   Three layers at rest, four on hover. The extra one is the cyan glow, which
+   arrives with the 2px lift so the light and the movement read as a single
+   gesture rather than two effects firing together.
+   -------------------------------------------------------------------------- */
+@utility shadow-key {
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--color-navy-950) 32%, transparent),
+    0 6px 16px -6px color-mix(in oklab, var(--color-navy-950) 46%, transparent),
+    inset 0 1px 0 color-mix(in oklab, var(--color-white) 70%, transparent);
+}
+
+@utility shadow-key-hover {
+  box-shadow:
+    0 2px 4px color-mix(in oklab, var(--color-navy-950) 30%, transparent),
+    0 14px 32px -10px color-mix(in oklab, var(--color-navy-950) 52%, transparent),
+    0 0 36px -8px color-mix(in oklab, var(--color-cyan-400) 58%, transparent),
+    inset 0 1px 0 color-mix(in oklab, var(--color-white) 80%, transparent);
+}
+
 /* Spec type is always tabular (§4.2) — SKUs and dimensions must align in a
    column, and proportional digits make a spec table look broken. */
 @utility text-spec {
@@ -639,6 +667,215 @@ html[lang="ar"] {
 
     to {
       background-position: -200% 0;
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+     5.35 Tile wall — the admin auth screens' brand surface
+
+     A wall of large-format tiles that lays itself, then catches the light.
+     Same vocabulary as the Assembly intro (§5.2): nothing bounces, tile is
+     heavy, and the settle comes from below because a tile is set downward
+     onto its bed.
+
+     `tile-set` is per-tile and staggered on the 45 degree brand axis by an
+     inline --tile-delay. `wall-sweep` is the single raking highlight that
+     crosses once the wall is laid. `wall-breathe` is the very slow drift
+     afterwards, so the surface is never completely static but never asks
+     for attention either.
+
+     The end state of all three is the visible, usable state, so the global
+     reduced-motion rule in §6 collapsing them is safe.
+     ------------------------------------------------------------------------ */
+
+  @keyframes tile-set {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0) scale(0.94);
+    }
+
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
+  @keyframes wall-sweep {
+    0% {
+      opacity: 0;
+      transform: translate3d(-130%, 0, 0) rotate(12deg);
+    }
+
+    22% {
+      opacity: 1;
+    }
+
+    78% {
+      opacity: 1;
+    }
+
+    100% {
+      opacity: 0;
+      transform: translate3d(130%, 0, 0) rotate(12deg);
+    }
+  }
+
+  @keyframes wall-breathe {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 0.5;
+      transform: scale(1.08);
+    }
+  }
+
+  /* A second light source, drifting on a long cycle out of phase with
+     wall-breathe, so the surface never repeats visibly. */
+  @keyframes wall-drift {
+    0%,
+    100% {
+      opacity: 0.22;
+      transform: translate3d(0, 0, 0);
+    }
+
+    50% {
+      opacity: 0.38;
+      transform: translate3d(6%, -4%, 0);
+    }
+  }
+
+  /* The glass card's arrival: rises and resolves out of blur. Slower than a
+     normal entrance because weight is the point. */
+  @keyframes card-rise {
+    0% {
+      opacity: 0;
+      filter: blur(12px);
+      transform: translate3d(0, 26px, 0) scale(0.985);
+    }
+
+    100% {
+      opacity: 1;
+      filter: blur(0);
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
+  /* Focus underline, drawn from the centre outward — the field's own
+     response, distinct from the global focus ring in §7.4. */
+  @keyframes field-underline {
+    0% {
+      transform: scaleX(0);
+    }
+
+    100% {
+      transform: scaleX(1);
+    }
+  }
+
+  /* Submit sheen. Runs only while pending, so waiting has a heartbeat
+     instead of a frozen button. */
+  @keyframes button-sheen {
+    0% {
+      transform: translate3d(-120%, 0, 0);
+    }
+
+    100% {
+      transform: translate3d(220%, 0, 0);
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+     5.36 Ambient polish — the auth screens' last 5%
+
+     Everything here is deliberately below the threshold of notice. The test
+     for each is that removing it should feel wrong without anyone being able
+     to say which thing changed. Amplitudes are single-digit pixels and cycles
+     are measured in tens of seconds; anything more becomes a distraction on
+     a screen people use several times a day.
+
+     All are compositor-only (transform/opacity), so none of them costs a
+     layout or a paint, and all collapse under the reduced-motion rule in §6.
+     ------------------------------------------------------------------------ */
+
+  /* The card breathing on its shadow. 3px, 9 seconds. */
+  @keyframes card-float {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0);
+    }
+
+    50% {
+      transform: translate3d(0, -3px, 0);
+    }
+  }
+
+  /* A reflection crossing the wall every so often. The long pause between
+     passes is the point — a highlight on a loop reads as a loading bar. */
+  @keyframes surface-reflection {
+    0%,
+    72% {
+      opacity: 0;
+      transform: translate3d(-60%, 0, 0) rotate(18deg);
+    }
+
+    80% {
+      opacity: 0.5;
+    }
+
+    92% {
+      opacity: 0.5;
+    }
+
+    100% {
+      opacity: 0;
+      transform: translate3d(160%, 0, 0) rotate(18deg);
+    }
+  }
+
+  /* The mark's ambient halo, in and out on a long cycle. */
+  @keyframes logo-breathe {
+    0%,
+    100% {
+      opacity: 0.32;
+      transform: scale(0.94);
+    }
+
+    50% {
+      opacity: 0.6;
+      transform: scale(1.1);
+    }
+  }
+
+  /* Film grain. Stepped rather than smooth — real grain resamples per frame,
+     it does not drift, and an eased translation reads as a moving texture
+     instead of as film. */
+  @keyframes grain-shift {
+    0% {
+      transform: translate3d(0, 0, 0);
+    }
+
+    20% {
+      transform: translate3d(-3%, 2%, 0);
+    }
+
+    40% {
+      transform: translate3d(2%, -3%, 0);
+    }
+
+    60% {
+      transform: translate3d(-2%, -2%, 0);
+    }
+
+    80% {
+      transform: translate3d(3%, 1%, 0);
+    }
+
+    100% {
+      transform: translate3d(0, 0, 0);
     }
   }
 

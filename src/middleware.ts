@@ -2,6 +2,7 @@ import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { routing } from "@/i18n/routing";
+import { updateSession } from "@/infrastructure/auth/middleware-session";
 import {
   VISITOR_COOKIE_MAX_AGE_SECONDS,
   VISITOR_COOKIE_NAME,
@@ -26,11 +27,60 @@ import {
 const intlMiddleware = createMiddleware(routing);
 
 export default async function middleware(request: NextRequest) {
-  const response = request.nextUrl.pathname.startsWith("/api")
+  const { pathname } = request.nextUrl;
+
+  // Admin is OUTSIDE `[locale]` (docs/02 §1.2) and English-only in v1, so it
+  // bypasses locale negotiation entirely.
+  if (pathname.startsWith("/admin")) {
+    const response = await guardAdminRoute(request);
+    await ensureVisitorCookie(request, response);
+    return response;
+  }
+
+  const response = pathname.startsWith("/api")
     ? NextResponse.next()
     : intlMiddleware(request);
 
   await ensureVisitorCookie(request, response);
+
+  return response;
+}
+
+/**
+ * Enforcement layer 1 — docs/04 §5.1: "Staff route + no session → 302
+ * /admin/login". COARSE ONLY. It asks whether a session exists, never what
+ * it may do: permissions are checked in the use-case wrapper
+ * (`src/application/auth/authorize.ts`) and again by RLS.
+ *
+ * That split is deliberate rather than redundant. Middleware runs on the
+ * edge without database access, so it cannot know a user's permissions
+ * without trusting the token's contents — and a gate that trusts the thing
+ * it is gating is not a gate. It keeps unauthenticated traffic off admin
+ * routes; real authorisation happens where the data is.
+ *
+ * `updateSession` also refreshes the Supabase session cookies on every
+ * request, which is what keeps rotation working (§4.6).
+ */
+async function guardAdminRoute(request: NextRequest): Promise<NextResponse> {
+  // The auth screens themselves must stay reachable without a session.
+  const isAuthScreen =
+    request.nextUrl.pathname === "/admin/login" ||
+    request.nextUrl.pathname === "/admin/2fa" ||
+    request.nextUrl.pathname === "/admin/forgot";
+
+  const { response, user } = await updateSession(request);
+
+  if (!user && !isAuthScreen) {
+    const loginUrl = new URL("/admin/login", request.url);
+    // Preserve the intended destination so sign-in can return them to it.
+    loginUrl.searchParams.set("next", request.nextUrl.pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Already signed in and sitting on the login screen → send them inward.
+  if (user && request.nextUrl.pathname === "/admin/login") {
+    return NextResponse.redirect(new URL("/admin", request.url));
+  }
 
   return response;
 }

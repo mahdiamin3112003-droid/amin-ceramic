@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
 
 import { findActiveTenant } from "@/infrastructure/db/repositories/tenant-repository";
+import { getStaffSession } from "@/infrastructure/auth/staff-session";
 import { prisma } from "@/infrastructure/db/client";
 import { VISITOR_COOKIE_NAME, verifyVisitorCookie } from "@/lib/visitor/cookie";
 
@@ -21,6 +22,23 @@ import { VISITOR_COOKIE_NAME, verifyVisitorCookie } from "@/lib/visitor/cookie";
  * `RUNTIME_DATABASE_URL` is a pgbouncer transaction-mode pool
  * (`connection_limit=1`) shared across requests.
  */
+/**
+ * The transaction handle `withRequestContext` hands to its callback.
+ *
+ * Exported as a named alias so application code can annotate it without
+ * importing `@prisma/client` directly, which the layer rule forbids.
+ *
+ * This is not a loophole in that rule. What the rule protects against is
+ * Prisma MODEL types — `Product`, `AppUser` — escaping infrastructure and
+ * becoming the shape the rest of the app thinks in; repositories map to
+ * domain types precisely so that cannot happen. A transaction handle is not
+ * a model, it is the capability to run a scoped query, and it already flows
+ * through every application-layer use-case by inference (see
+ * `use-cases/quote/basket-mutations.ts`). Naming it here makes that visible
+ * rather than leaving it to an inferred type nobody can grep for.
+ */
+export type RequestTransaction = Prisma.TransactionClient;
+
 export interface RequestClaims {
   readonly tenantId: string;
   readonly visitorId?: string | null;
@@ -82,13 +100,24 @@ export interface RequestContext {
   readonly tenantId: string;
   /** Null when the visitor cookie is absent, unsigned, or its signature fails. */
   readonly visitorId: string | null;
+  /** Null for anonymous visitors; set when a staff member is signed in. */
+  readonly appUserId: string | null;
+  /** Flattened permission union. Empty for visitors, and empty for staff who owe TOTP. */
+  readonly permissions: readonly string[];
 }
 
 /**
- * Resolve the current request's tenant and visitor from the `ac_vid` cookie
- * middleware already set (src/middleware.ts, docs/04-api-architecture.md
- * §4.2). Staff (`appUserId`/`permissions`) join this once auth lands in
- * Phase 4 — Phase 2 is visitor-only.
+ * Resolve the current request's tenant, visitor, and — since Phase 4 —
+ * signed-in staff member from the `ac_vid` cookie middleware set
+ * (src/middleware.ts, docs/04-api-architecture.md §4.2) plus the Supabase
+ * Auth session.
+ *
+ * Staff resolution is FAIL-OPEN-AS-ANONYMOUS by design: if the auth lookup
+ * throws (Supabase unreachable, no staff record), the request continues as
+ * an ordinary visitor with no permissions rather than erroring. A broken
+ * auth service must not take the public catalogue down — and because
+ * permissions default to `[]`, the failure mode is "can see less", never
+ * "can see more".
  *
  * `findActiveTenant` reads through the bare `prisma` client rather than
  * `withRequestContext`: resolving "which tenant is this" is the one read
@@ -117,5 +146,20 @@ export const getRequestContext = cache(async (): Promise<RequestContext> => {
   const cookieValue = cookieStore.get(VISITOR_COOKIE_NAME)?.value;
   const visitorId = secret ? await verifyVisitorCookie(cookieValue, secret) : null;
 
-  return { tenantId: tenant.id, visitorId };
+  let staff: Awaited<ReturnType<typeof getStaffSession>> = null;
+  try {
+    staff = await getStaffSession();
+  } catch (cause) {
+    console.error(
+      "[auth] staff session resolution failed; continuing anonymous",
+      cause,
+    );
+  }
+
+  return {
+    tenantId: tenant.id,
+    visitorId,
+    appUserId: staff?.appUserId ?? null,
+    permissions: staff?.permissions ?? [],
+  };
 });

@@ -108,13 +108,31 @@ pnpm db:generate      # prisma generate
   `no-transition-colors`. The layer boundary is `eslint-plugin-boundaries` in
   `eslint.config.mjs`.
 - **Decisions of record** — `docs/adr/`. Every place the implementation departs
-  from `docs/01`–`docs/04`, with the reasoning. Ten so far.
+  from `docs/01`–`docs/04`, with the reasoning. Thirteen so far.
+- **Admin authorisation** — `src/application/auth/`. `authorize.ts` is the
+  permission check, `admin-mutation.ts` is the single entry point for every
+  staff write: it checks the permission, stamps the RLS claims, runs the
+  mutation and writes the audit row in ONE transaction. A mutation that
+  doesn't return an audit entry doesn't compile. Staff claims are resolved
+  per request in `src/infrastructure/auth/staff-session.ts` — that is what
+  makes the Phase 1 staff RLS policies live.
 - **Foundation demo route** — `src/app/[locale]/(marketing)/page.tsx`. Proves
   tokens, fonts, locale switching, RTL, focus and the Prisma read. Replaced by
   the real homepage in Phase 3.
 
 ## Phase status
 
-Phase 0 (foundation) is complete apart from the Supabase and Vercel wiring,
-which is blocked on those accounts existing. Phase 1 is the data core — do not
-start it without being asked.
+| Phase | State |
+|---|---|
+| 0 · Foundation | Complete. Supabase is wired; Vercel deployment is still outstanding. |
+| 1 · Data core | Complete — full schema, RLS, quantity calculator, repositories, seed. |
+| 2 · Catalogue & quote | Complete — listing, facets, search, PDP, compare, basket, quote, samples. |
+| 3 · Brand & motion | Complete — real logo, assembly intro, homepage, global chrome. |
+| 4 · Admin foundation | Complete — auth + TOTP, RBAC across three layers, dashboard shell, product CRUD, media library, inventory, audit log. |
+| 5+ | Not started. **Do not begin the next phase without being asked.** |
+
+Phase 4 left these deliberately for later, so they are not mistaken for gaps:
+`/admin/collections` and `/admin/requests` (Phase 6), `/admin/settings` plus
+user and role management (Phase 7), and `price.trade.*` / trade-tier admin
+(no UI consumes those permissions yet). None appear in the admin nav — a nav
+item that 404s reads as a bug rather than as an unbuilt section.

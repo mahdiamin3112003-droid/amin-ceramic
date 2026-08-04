@@ -1,0 +1,32 @@
+-- =============================================================================
+-- 0024 · Remove the media bucket's SELECT policy — it enabled listing
+-- =============================================================================
+--
+-- Caught by `get_advisors` immediately after migration 0023, exactly the way
+-- the Phase 0 grants gap was (ADR-0011). Advisor: `public_bucket_allows_listing`.
+--
+-- The mistake: 0023 added a broad SELECT policy on `storage.objects` for
+-- `bucket_id = 'media'`, reasoning that a public bucket needs one to be
+-- readable. It does not. A bucket with `public = true` is served through
+-- `/storage/v1/object/public/<bucket>/<path>` WITHOUT consulting RLS at all —
+-- that is what the flag means.
+--
+-- So the policy granted nothing that was needed, and one thing that was not:
+-- LIST. With a SELECT policy in place, any anonymous client can enumerate
+-- every object in the bucket. Fetching a known URL is what we wanted;
+-- enumerating the whole catalogue is not the same thing.
+--
+-- That distinction has teeth here. Object paths are content-addressed
+-- (`<tenant>/<sha256>.webp`), so the listing does not leak filenames — but it
+-- does leak the COMPLETE SET, including imagery already uploaded and attached
+-- to products still in `draft`. A competitor could watch new SKUs arrive
+-- before they are announced. Publishing a product is meant to be the moment
+-- its imagery becomes public.
+--
+-- Dropping the policy leaves `storage.objects` with no policy for this
+-- bucket, which denies listing to every client role while public URL reads
+-- continue to work untouched. Writes were already closed and stay closed:
+-- uploads go through the service-role client, behind
+-- `requirePermission('media.manage')`.
+
+DROP POLICY IF EXISTS "media_public_read" ON storage.objects;
