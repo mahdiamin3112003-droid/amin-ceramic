@@ -1,11 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import {
   createTestStaff,
   deleteTestStaff,
   type TestStaff,
 } from "./support/staff-fixture";
-import { generateTotp, secondsUntilNextWindow } from "./support/totp";
+import { signInFully } from "./support/sign-in";
 
 /**
  * Role-based authorisation, proven NEGATIVELY.
@@ -18,25 +18,6 @@ import { generateTotp, secondsUntilNextWindow } from "./support/totp";
  * Every assertion runs against real seeded roles, real RLS claims and the
  * real permission check — nothing is mocked.
  */
-
-/** Sign in, completing TOTP when the role requires it. */
-async function signInFully(page: Page, staff: TestStaff): Promise<void> {
-  await page.goto("/admin/login");
-  await page.getByLabel("Email").fill(staff.email);
-  await page.getByLabel("Password", { exact: true }).fill(staff.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-
-  // Read-only roles land straight on the dashboard.
-  await page.waitForURL(/\/admin(\/2fa)?(\?.*)?$/);
-  if (!page.url().includes("/admin/2fa")) return;
-
-  await page.getByText(/can.t scan it/i).click();
-  const secret = (await page.locator("code").first().innerText()).trim();
-  if (secondsUntilNextWindow() < 5) await page.waitForTimeout(6000);
-  await page.getByLabel(/six-digit code/i).fill(generateTotp(secret));
-  await page.getByRole("button", { name: /confirm and continue/i }).click();
-  await page.waitForURL("/admin");
-}
 
 test.describe("viewer — read-only", () => {
   let staff: TestStaff;

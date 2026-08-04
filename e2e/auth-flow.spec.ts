@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import {
   createTestStaff,
@@ -6,7 +6,11 @@ import {
   listFactors,
   type TestStaff,
 } from "./support/staff-fixture";
-import { generateTotp, secondsUntilNextWindow } from "./support/totp";
+import {
+  readEnrolmentSecret,
+  submitCredentials,
+  submitTotp,
+} from "./support/sign-in";
 
 /**
  * The authentication flow, end to end, against a real browser and the real
@@ -19,19 +23,7 @@ import { generateTotp, secondsUntilNextWindow } from "./support/totp";
  */
 
 /** Sign in through the actual form, the way a person does. */
-async function signIn(
-  page: Page,
-  staff: TestStaff,
-  options: { rememberMe?: boolean } = {},
-): Promise<void> {
-  await page.goto("/admin/login");
-  await page.getByLabel("Email").fill(staff.email);
-  await page.getByLabel("Password", { exact: true }).fill(staff.password);
-  if (options.rememberMe) {
-    await page.getByText("Keep me signed in").click();
-  }
-  await page.getByRole("button", { name: "Sign in" }).click();
-}
+const signIn = submitCredentials;
 
 test.describe("sign in", () => {
   let staff: TestStaff;
@@ -241,18 +233,8 @@ test.describe("two-factor authentication", () => {
 
     // The secret the QR encodes, read from the manual-entry disclosure —
     // exactly what a person types into their authenticator.
-    await page.getByText(/can.t scan it/i).click();
-    const secret = (await page.locator("code").first().innerText()).trim();
-    expect(secret.length).toBeGreaterThan(15);
-
-    // Don't straddle a window boundary: a code generated at :29 and
-    // submitted at :31 has already rolled over.
-    if (secondsUntilNextWindow() < 5) {
-      await page.waitForTimeout(6000);
-    }
-
-    await page.getByLabel(/six-digit code/i).fill(generateTotp(secret));
-    await page.getByRole("button", { name: /confirm and continue/i }).click();
+    const secret = await readEnrolmentSecret(page);
+    await submitTotp(page, secret, /confirm and continue/i);
 
     await expect(page).toHaveURL("/admin");
     await expect(
@@ -287,11 +269,8 @@ test.describe("two-factor authentication", () => {
   }) => {
     // Enrol once.
     await signIn(page, staff);
-    await page.getByText(/can.t scan it/i).click();
-    const secret = (await page.locator("code").first().innerText()).trim();
-    if (secondsUntilNextWindow() < 5) await page.waitForTimeout(6000);
-    await page.getByLabel(/six-digit code/i).fill(generateTotp(secret));
-    await page.getByRole("button", { name: /confirm and continue/i }).click();
+    const secret = await readEnrolmentSecret(page);
+    await submitTotp(page, secret, /confirm and continue/i);
     await expect(page).toHaveURL("/admin");
 
     // Fresh browser state, same account.
@@ -308,10 +287,7 @@ test.describe("two-factor authentication", () => {
     ).toBeHidden();
 
     // A NEW code from the same secret gets in.
-    if (secondsUntilNextWindow() < 5) await page.waitForTimeout(6000);
-    await page.getByLabel(/six-digit code/i).fill(generateTotp(secret));
-    await page.getByRole("button", { name: /^verify$/i }).click();
-
+    await submitTotp(page, secret, /^verify$/i);
     await expect(page).toHaveURL("/admin");
   });
 });
