@@ -212,4 +212,22 @@ export default tseslint.config(
       "boundaries/external": "off",
     },
   },
+
+  // The end-to-end harness sits outside the layered architecture entirely:
+  // it drives the built application from a browser, so it legitimately
+  // reaches for Prisma and the Supabase admin API to set up and tear down
+  // its own fixtures.
+  //
+  // `rules-of-hooks` is off because Playwright's fixture signature is
+  // `async ({ page }, use) => …` — the second parameter is conventionally
+  // named `use`, which the React plugin reads as a hook call inside a
+  // non-component function. It is not React and there are no hooks here.
+  {
+    files: ["e2e/**/*.ts"],
+    rules: {
+      "boundaries/element-types": "off",
+      "boundaries/external": "off",
+      "react-hooks/rules-of-hooks": "off",
+    },
+  },
 );

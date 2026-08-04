@@ -198,6 +198,52 @@ export async function purgeAllTestStaff(): Promise<number> {
   return stale.length;
 }
 
+/**
+ * Taxonomy rows the suite created, swept the same way accounts are.
+ *
+ * The taxonomy specs create real vocabulary entries against the real
+ * tenant. Without this they accumulate: after three runs the finish list
+ * already carried three `e2e-*` rows that a merchandiser would have to
+ * delete by hand.
+ *
+ * Same interlock as the account sweep: the `e2e-` prefix is required, so
+ * this can only ever remove rows the suite made. A real finish named
+ * "e2e-something" would have to be created deliberately to be at risk.
+ */
+const TEST_KEY_PREFIX = "e2e-";
+
+const SWEEPABLE = [
+  "material",
+  "finish",
+  "surfaceLook",
+  "colorFamily",
+  "application",
+  "layoutPattern",
+] as const;
+
+export async function purgeTestTaxonomy(): Promise<number> {
+  let removed = 0;
+
+  for (const model of SWEEPABLE) {
+    const delegate = (
+      prisma() as unknown as Record<
+        string,
+        { deleteMany: (a: unknown) => Promise<{ count: number }> } | undefined
+      >
+    )[model];
+    if (!delegate) continue;
+
+    // Translations cascade on delete (onDelete: Cascade), so the parent row
+    // is all that needs removing.
+    const { count } = await delegate.deleteMany({
+      where: { key: { startsWith: TEST_KEY_PREFIX } },
+    });
+    removed += count;
+  }
+
+  return removed;
+}
+
 /** Read the TOTP factors Supabase holds for a user, via the admin API. */
 export async function listFactors(
   authUserId: string,

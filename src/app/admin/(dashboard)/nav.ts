@@ -33,10 +33,14 @@ export const ADMIN_NAV: readonly AdminNavSection[] = [
         permission: "product.read",
         prefix: true,
       },
-      // Collections (`content.manage`) is Phase 6. Deliberately NOT listed
-      // yet: a nav item that 404s is worse than an absent one, because it
-      // reads as a bug in something that works rather than as a section that
-      // does not exist. Same for Quote requests and Settings below.
+      {
+        href: "/admin/taxonomy",
+        label: "Taxonomy",
+        // The vocabularies the catalogue filters by — materials, finishes,
+        // surface looks, colour families, applications, layout patterns.
+        permission: "content.manage",
+        prefix: true,
+      },
       {
         href: "/admin/media",
         label: "Media",

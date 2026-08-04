@@ -1,4 +1,4 @@
-import { disconnect, purgeAllTestStaff } from "./staff-fixture";
+import { disconnect, purgeAllTestStaff, purgeTestTaxonomy } from "./staff-fixture";
 
 /**
  * Last line of defence against leaked fixtures.
@@ -10,9 +10,16 @@ import { disconnect, purgeAllTestStaff } from "./staff-fixture";
  */
 export default async function globalTeardown(): Promise<void> {
   try {
-    const purged = await purgeAllTestStaff();
-    if (purged > 0) {
-      console.log(`[e2e] swept ${String(purged)} leftover test account(s)`);
+    const accounts = await purgeAllTestStaff();
+    if (accounts > 0) {
+      console.log(`[e2e] swept ${String(accounts)} leftover test account(s)`);
+    }
+
+    // The taxonomy specs create real vocabulary rows against the real
+    // tenant; without this they accumulate run on run.
+    const taxonomy = await purgeTestTaxonomy();
+    if (taxonomy > 0) {
+      console.log(`[e2e] swept ${String(taxonomy)} leftover taxonomy row(s)`);
     }
   } finally {
     await disconnect();

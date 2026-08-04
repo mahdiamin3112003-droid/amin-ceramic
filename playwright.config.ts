@@ -59,6 +59,9 @@ export default defineConfig({
     video: "off",
   },
 
+  // Reduced motion is applied by the shared `test` fixture in
+  // e2e/support/test.ts rather than here — `@playwright/test`'s UseOptions
+  // does not carry `reducedMotion` in this version.
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 
   webServer: {
