@@ -109,5 +109,11 @@ export async function signInFully(page: Page, staff: TestStaff): Promise<void> {
 
   const secret = await readEnrolmentSecret(page);
   await submitTotp(page, secret, /confirm and continue/i);
-  await page.waitForURL("/admin");
+
+  // `submitTotp` has already waited for the navigation off /admin/2fa, so
+  // this only confirms where it landed. An extra `waitForURL("/admin")`
+  // here waits for a `load` event that has already fired and can hang for
+  // the whole test timeout — a flake that surfaced only under the full
+  // suite, where it looked like a broken second factor.
+  await expect(page).toHaveURL(/\/admin(\/|$|\?)/);
 }

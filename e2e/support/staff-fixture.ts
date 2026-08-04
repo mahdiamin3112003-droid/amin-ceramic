@@ -244,6 +244,117 @@ export async function purgeTestTaxonomy(): Promise<number> {
   return removed;
 }
 
+/**
+ * A throwaway quote request, with one line item.
+ *
+ * Same interlock idea as the accounts: the reference carries a fixed
+ * prefix, and nothing without it can be deleted.
+ *
+ * The prefix has to satisfy the schema's own CHECK —
+ * `^[A-Z]{2,4}-[0-9]{4}-[0-9]{3,6}$` — so it cannot simply be "E2E-".
+ * `ZZ-9999-` conforms while being unmistakably synthetic: the real
+ * generator issues `AC-<current year>-…`, and there will never be a
+ * year 9999.
+ */
+const TEST_REFERENCE_PREFIX = "ZZ-9999-";
+
+export interface TestQuote {
+  readonly id: string;
+  readonly reference: string;
+  readonly visitorId: string;
+}
+
+function assertIsTestQuote(reference: string): void {
+  if (!reference.startsWith(TEST_REFERENCE_PREFIX)) {
+    throw new Error(
+      `refusing to touch "${reference}" — the suite may only delete ${TEST_REFERENCE_PREFIX}* quote requests`,
+    );
+  }
+}
+
+export async function createTestQuoteRequest(status: string): Promise<TestQuote> {
+  const tenantId = await getTenantId();
+  // Six digits, matching the CHECK's `[0-9]{3,6}` tail.
+  const serial = String(Math.floor(Math.random() * 1_000_000)).padStart(6, "0");
+  const reference = `${TEST_REFERENCE_PREFIX}${serial}`;
+  assertIsTestQuote(reference);
+
+  // A visitor row is required — `visitor_id` is NOT NULL because guests
+  // quote too (docs/03 §11.1).
+  const visitor = await prisma().visitor.create({
+    data: { tenantId },
+    select: { id: true },
+  });
+
+  // Any published product will do; the line item snapshots it anyway.
+  const product = await prisma().product.findFirst({
+    where: { tenantId, deletedAt: null },
+    select: { id: true, sku: true, basePrice: true, currency: true },
+  });
+  if (!product) throw new Error("no products seeded — run `pnpm db:seed`");
+
+  const quote = await prisma().quoteRequest.create({
+    data: {
+      tenantId,
+      visitorId: visitor.id,
+      reference,
+      status: status as "submitted",
+      contactName: "E2E Contact",
+      contactEmail: "e2e@example.invalid",
+      companyName: "E2E Testing Ltd",
+      projectCity: "Beirut",
+      source: "catalog",
+      currency: product.currency,
+      subtotal: 1000,
+      totalAreaM2: 42.5,
+      submittedAt: new Date(),
+      items: {
+        create: [
+          {
+            productId: product.id,
+            quantityM2: 42.5,
+            quantityBoxes: 30,
+            skuSnapshot: product.sku,
+            nameSnapshot: "E2E snapshot name",
+            unitPriceSnapshot: product.basePrice ?? 25,
+            currencySnapshot: product.currency,
+            lineTotal: 1000,
+          },
+        ],
+      },
+    },
+    select: { id: true },
+  });
+
+  return { id: quote.id, reference, visitorId: visitor.id };
+}
+
+export async function deleteTestQuoteRequest(quote: TestQuote): Promise<void> {
+  assertIsTestQuote(quote.reference);
+
+  // Items cascade from the request; the visitor is ours and goes too.
+  await prisma().quoteRequest.deleteMany({
+    where: { id: quote.id, reference: quote.reference },
+  });
+  await prisma().visitor.deleteMany({ where: { id: quote.visitorId } });
+}
+
+/** Sweep any quote requests a killed worker left behind. */
+export async function purgeTestQuotes(): Promise<number> {
+  const stale = await prisma().quoteRequest.findMany({
+    where: { reference: { startsWith: TEST_REFERENCE_PREFIX } },
+    select: { id: true, reference: true, visitorId: true },
+  });
+
+  for (const row of stale) {
+    assertIsTestQuote(row.reference);
+    await prisma().quoteRequest.deleteMany({ where: { id: row.id } });
+    await prisma().visitor.deleteMany({ where: { id: row.visitorId } });
+  }
+
+  return stale.length;
+}
+
 /** Read the TOTP factors Supabase holds for a user, via the admin API. */
 export async function listFactors(
   authUserId: string,

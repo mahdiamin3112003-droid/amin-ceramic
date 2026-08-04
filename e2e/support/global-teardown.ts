@@ -1,4 +1,9 @@
-import { disconnect, purgeAllTestStaff, purgeTestTaxonomy } from "./staff-fixture";
+import {
+  disconnect,
+  purgeAllTestStaff,
+  purgeTestQuotes,
+  purgeTestTaxonomy,
+} from "./staff-fixture";
 
 /**
  * Last line of defence against leaked fixtures.
@@ -20,6 +25,11 @@ export default async function globalTeardown(): Promise<void> {
     const taxonomy = await purgeTestTaxonomy();
     if (taxonomy > 0) {
       console.log(`[e2e] swept ${String(taxonomy)} leftover taxonomy row(s)`);
+    }
+
+    const quotes = await purgeTestQuotes();
+    if (quotes > 0) {
+      console.log(`[e2e] swept ${String(quotes)} leftover quote request(s)`);
     }
   } finally {
     await disconnect();

@@ -58,7 +58,12 @@ export const ADMIN_NAV: readonly AdminNavSection[] = [
         permission: "inventory.read",
         prefix: true,
       },
-      // Quote requests (`request.read`) is Phase 6.
+      {
+        href: "/admin/requests",
+        label: "Quote requests",
+        permission: "request.read",
+        prefix: true,
+      },
     ],
   },
   {
