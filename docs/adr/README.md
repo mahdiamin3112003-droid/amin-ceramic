@@ -26,3 +26,4 @@ disagree with one, that is the file to argue with.
 | [0011](0011-supabase-grants-and-hardening.md)    | Live testing found missing PostgREST grants and mutable function search_path; both fixed, extension-schema move deferred |
 | [0012](0012-no-token-revocation-table.md)        | No `token_revocation` table and no Redis mirror — permissions are read per request, so revocation is already immediate   |
 | [0013](0013-supabase-storage-over-cloudinary.md) | Media goes to Supabase Storage with derivatives pregenerated at upload, not Cloudinary                                   |
+| [0014](0014-staff-identity-resolver.md)          | A SECURITY DEFINER function breaks the sign-in RLS deadlock; the e2e suite is what caught it                             |

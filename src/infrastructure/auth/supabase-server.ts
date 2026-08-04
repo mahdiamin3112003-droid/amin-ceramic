@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+import {
+  hardenAuthCookie,
+  toSessionScoped,
+} from "@/infrastructure/auth/cookie-policy";
+
 /**
  * Supabase Auth — the server-side client.
  *
@@ -9,9 +14,13 @@ import { cookies } from "next/headers";
  *
  * SESSION STORAGE IS COOKIES, NEVER `localStorage` — docs/04 §4.6 is
  * explicit: "Tokens in JS-readable storage are one XSS away from full
- * account compromise, and no CSP is perfect." `@supabase/ssr`'s
- * `createServerClient` keeps the session in httpOnly cookies that the
- * browser bundle cannot read.
+ * account compromise, and no CSP is perfect."
+ *
+ * Cookies alone are NOT enough to satisfy that, and an earlier version of
+ * this comment wrongly claimed `createServerClient` handled it.
+ * `@supabase/ssr` sets neither `httpOnly` nor `secure`, so the token was
+ * script-readable and plaintext-transmissible until `hardenAuthCookie`
+ * started wrapping every write below. See `cookie-policy.ts`.
  *
  * This is the AUTH client only. It never queries application tables —
  * every one of those goes through Prisma under `withRequestContext` so RLS
@@ -50,20 +59,15 @@ export async function createSupabaseServerClient(options?: {
       setAll(cookiesToSet) {
         try {
           for (const { name, value, options: cookieOptions } of cookiesToSet) {
-            if (options?.persistSession === false) {
-              // Strip the lifetime so the browser treats it as a session
-              // cookie. Everything else — httpOnly, secure, sameSite, path —
-              // is preserved exactly as Supabase set it.
-              // Copied and pruned rather than destructured-with-rest: the
-              // rest form leaves two bindings that exist only to be thrown
-              // away, which the no-unused-vars rule rightly objects to.
-              const sessionScoped = { ...cookieOptions };
-              delete sessionScoped.maxAge;
-              delete sessionScoped.expires;
-              cookieStore.set(name, value, sessionScoped);
-            } else {
-              cookieStore.set(name, value, cookieOptions);
-            }
+            // EVERY write is hardened; the persistSession branch only
+            // decides whether a lifetime survives.
+            cookieStore.set(
+              name,
+              value,
+              options?.persistSession === false
+                ? toSessionScoped(cookieOptions)
+                : hardenAuthCookie(cookieOptions),
+            );
           }
         } catch {
           // `cookies()` is read-only inside Server Components. Writes happen

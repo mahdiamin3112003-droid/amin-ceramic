@@ -21,6 +21,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
     "db:migrate": "prisma migrate dev",
@@ -54,6 +56,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^10.5.5",
     "@storybook/addon-docs": "^10.5.5",
     "@storybook/nextjs": "^10.5.5",

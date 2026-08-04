@@ -84,11 +84,15 @@ pnpm lint:format      #   prettier --check only
 pnpm lint:fix         # autofix all three
 pnpm format           # prettier --write
 
-pnpm test             # vitest run
+pnpm test             # vitest run — unit + the TOTP generator's RFC vectors
 pnpm test:watch       # vitest
+pnpm test:e2e         # playwright — real browser, real Supabase, real roles
+pnpm test:e2e:ui      # playwright, interactive
 
 pnpm storybook        # design review surface, http://localhost:6006
 pnpm storybook:build  # static build, runs in CI
+
+pnpm db:bootstrap-owner  # create the first owner — OWNER_EMAIL/OWNER_PASSWORD
 
 pnpm db:migrate       # prisma migrate dev
 pnpm db:deploy        # prisma migrate deploy (CI / production)
@@ -108,7 +112,14 @@ pnpm db:generate      # prisma generate
   `no-transition-colors`. The layer boundary is `eslint-plugin-boundaries` in
   `eslint.config.mjs`.
 - **Decisions of record** — `docs/adr/`. Every place the implementation departs
-  from `docs/01`–`docs/04`, with the reasoning. Thirteen so far.
+  from `docs/01`–`docs/04`, with the reasoning. Fourteen so far.
+- **End-to-end suite** — `e2e/`. Playwright against a production build.
+  Creates throwaway `e2e-*@e2e.invalid` staff accounts per test and deletes
+  them in teardown; `assertIsTestAccount` makes it structurally unable to
+  delete a real one. `e2e/support/totp.ts` computes real TOTP codes, which
+  is what makes the MFA paths machine-verifiable. **These caught two bugs
+  no unit test could**: sign-in was impossible (RLS deadlock, migration
+  0025) and auth cookies were neither httpOnly nor secure.
 - **Admin authorisation** — `src/application/auth/`. `authorize.ts` is the
   permission check, `admin-mutation.ts` is the single entry point for every
   staff write: it checks the permission, stamps the RLS claims, runs the

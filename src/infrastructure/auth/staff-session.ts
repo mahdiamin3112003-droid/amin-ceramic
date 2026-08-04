@@ -55,46 +55,40 @@ export const getStaffSession = cache(async (): Promise<StaffSession | null> => {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Bare `prisma`, deliberately: this read RESOLVES the claims, so it
-  // cannot itself run under claims that do not exist yet. It is keyed on
-  // the Supabase-verified `auth.users.id`, never on client-supplied input.
-  const appUser = await prisma.appUser.findUnique({
-    where: { authUserId: user.id },
-    select: {
-      id: true,
-      email: true,
-      fullName: true,
-      status: true,
-      deletedAt: true,
-      userRoles: {
-        select: {
-          role: {
-            select: {
-              key: true,
-              rolePermissions: {
-                select: { permission: { select: { key: true } } },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
+  // ── The bootstrap read ──
+  //
+  // Through `app.resolve_staff_identity()`, NOT an ordinary Prisma query.
+  //
+  // The obvious version — `prisma.appUser.findUnique({ where: { authUserId }})`
+  // — is what this used to do, and it could never work. The runtime
+  // connection is the RLS-constrained `app_runtime` role, and
+  // `app_user_self_read` authorises on `app.app_user_id()`, which is the
+  // very claim this read exists to produce. It failed closed, returned zero
+  // rows, and made every sign-in report a wrong password. Caught by the
+  // end-to-end suite; see migration 0025 for the full reasoning.
+  //
+  // The function is SECURITY DEFINER, STABLE, executable only by
+  // `app_runtime`, and takes the Supabase-verified `auth.users.id` — never
+  // client-supplied input. It also filters out suspended and soft-deleted
+  // accounts in SQL, so there is no version of this that forgets to.
+  const rows = await prisma.$queryRaw<
+    {
+      app_user_id: string;
+      tenant_id: string;
+      email: string;
+      full_name: string | null;
+      role_keys: string[];
+      permissions: string[];
+    }[]
+  >`SELECT * FROM app.resolve_staff_identity(${user.id}::uuid)`;
 
   // No linked staff record, suspended, or soft-deleted → no staff session.
   // A Supabase account alone grants nothing; authority comes from AppUser.
-  if (appUser?.deletedAt !== null || appUser.status !== "active") {
-    return null;
-  }
+  const appUser = rows[0];
+  if (!appUser) return null;
 
-  const roleKeys = appUser.userRoles.map((ur) => ur.role.key);
-  const granted = [
-    ...new Set(
-      appUser.userRoles.flatMap((ur) =>
-        ur.role.rolePermissions.map((rp) => rp.permission.key),
-      ),
-    ),
-  ].sort();
+  const roleKeys = appUser.role_keys;
+  const granted = [...new Set(appUser.permissions)].sort();
 
   const mfaRequired = requiresMfa(granted);
 
@@ -104,10 +98,10 @@ export const getStaffSession = cache(async (): Promise<StaffSession | null> => {
   const mfaSatisfied = !mfaRequired || aal?.currentLevel === "aal2";
 
   return {
-    appUserId: appUser.id,
+    appUserId: appUser.app_user_id,
     authUserId: user.id,
     email: appUser.email,
-    fullName: appUser.fullName,
+    fullName: appUser.full_name,
     roleKeys,
     // Withheld until the second factor is done — this is the enforcement,
     // not the UI.

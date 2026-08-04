@@ -14,10 +14,20 @@ export default defineConfig({
     environment: "jsdom",
     globals: false,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "e2e/support/**/*.test.ts"],
     // Phase 0 tests are pure: no database, no network. Repository and RLS tests
     // arrive in Phase 1 with Testcontainers (docs/01-architecture.md §8.5).
-    exclude: ["node_modules/**", ".next/**", "e2e/**", "storybook-static/**"],
+    // Only the PLAYWRIGHT specs are excluded, not all of `e2e/`. The TOTP
+    // generator under `e2e/support/` is a pure function with RFC 6238 test
+    // vectors, and it belongs in the fast unit run — every MFA assertion in
+    // the browser suite trusts it, so a silent break there would look like
+    // a product bug rather than a harness one.
+    exclude: [
+      "node_modules/**",
+      ".next/**",
+      "e2e/**/*.spec.ts",
+      "storybook-static/**",
+    ],
     coverage: {
       provider: "v8",
       include: ["src/domain/**", "src/lib/**"],

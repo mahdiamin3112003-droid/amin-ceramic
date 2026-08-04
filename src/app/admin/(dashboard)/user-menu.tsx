@@ -22,7 +22,18 @@ export function UserMenu({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2">
+        {/*
+          The visible text is the person's name, which says who is signed in
+          but not what the control does. `aria-label` supplies the verb, so
+          a screen reader announces "Account menu for Dana, button" rather
+          than just reading a name aloud.
+        */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2"
+          aria-label={`Account menu for ${display}`}
+        >
           <span
             aria-hidden
             className="grid size-7 shrink-0 place-items-center rounded-full bg-navy-700 text-caption text-white"

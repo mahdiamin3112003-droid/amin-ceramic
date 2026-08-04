@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { hardenAuthCookie } from "@/infrastructure/auth/cookie-policy";
+
 /**
  * Supabase session handling for EDGE middleware.
  *
@@ -41,7 +43,9 @@ export async function updateSession(request: NextRequest): Promise<{
         }
         response = NextResponse.next({ request });
         for (const { name, value, options } of cookiesToSet) {
-          response.cookies.set(name, value, options);
+          // The refresh path writes cookies too, so it needs the same
+          // hardening — a token rotated here must not come back readable.
+          response.cookies.set(name, value, hardenAuthCookie(options));
         }
       },
     },
