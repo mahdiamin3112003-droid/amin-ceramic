@@ -43,6 +43,19 @@ export async function signInAction(
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      // The CALLER is told nothing (rule 1), but the operator must be. A
+      // wrong password and a rate-limited or unreachable auth service are
+      // the same event to the user and completely different events to
+      // whoever is on call — and until this logged, an infrastructure
+      // failure was indistinguishable from a typo in the server logs too.
+      //
+      // `error.status` and `error.code` are what separate them: 400 is a
+      // bad credential, 429 is a rate limit, 5xx is Supabase.
+      console.error("[auth] sign-in rejected", {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+      });
       return { ok: false, error: SIGN_IN_FAILED };
     }
 
@@ -53,6 +66,13 @@ export async function signInAction(
     // attached to a non-staff account is a loose end.
     const session = await getStaffSession();
     if (!session) {
+      // Valid Supabase credential, no active staff record. Worth logging as
+      // its own case: it is what a suspended or soft-deleted account looks
+      // like, and it is also what a broken `resolve_staff_identity` looks
+      // like — the two need telling apart.
+      console.error("[auth] credential accepted but no active staff record", {
+        email,
+      });
       await supabase.auth.signOut();
       return { ok: false, error: SIGN_IN_FAILED };
     }

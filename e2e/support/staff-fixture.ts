@@ -61,7 +61,25 @@ function supabaseAdmin(): SupabaseClient {
 
 let prismaClient: PrismaClient | null = null;
 function prisma(): PrismaClient {
-  prismaClient ??= new PrismaClient();
+  /**
+   * The DIRECT connection (port 5432), not the pooler.
+   *
+   * The fixture does setup and teardown, not request-path work, so it has
+   * no need of pgbouncer — and pointing it at the pooler makes it compete
+   * with the application server for the same small connection allowance.
+   * Under the full suite that surfaced as an intermittent "Can't reach
+   * database server" in whichever test happened to be running, which reads
+   * like a product failure and is not one.
+   *
+   * Falls back to the default datasource when DIRECT_URL is absent, so a
+   * CI environment that only supplies one URL still works.
+   */
+  if (!prismaClient) {
+    const directUrl = process.env.DIRECT_URL;
+    prismaClient = directUrl
+      ? new PrismaClient({ datasources: { db: { url: directUrl } } })
+      : new PrismaClient();
+  }
   return prismaClient;
 }
 
@@ -122,6 +140,18 @@ export async function createTestStaff(roleKey: string): Promise<TestStaff> {
   if (error)
     throw new Error(`could not create the test auth user: ${error.message}`);
 
+  // Wait for the new user to become READABLE before handing it to a test.
+  //
+  // `createUser` returning does not guarantee the next `signInWithPassword`
+  // will find the account: under the load of the full suite — ~55 rapid
+  // create/sign-in/delete cycles — Supabase intermittently answered a
+  // sign-in for a just-created account with `403 user_not_found`, which
+  // surfaced as a test failing on the login page for no visible reason.
+  //
+  // This is waiting for a write to become visible, not retrying a failure:
+  // if the account never appears, the throw below is the honest outcome.
+  await waitForAuthUser(data.user.id);
+
   const appUser = await prisma().appUser.create({
     data: {
       tenantId,
@@ -145,6 +175,21 @@ export async function createTestStaff(roleKey: string): Promise<TestStaff> {
     password,
     roleKey,
   };
+}
+
+/**
+ * Poll until the admin API can read back a user it just created.
+ *
+ * Bounded and short — this covers propagation, not an outage. Roughly two
+ * seconds in the worst case, and normally the first read succeeds.
+ */
+async function waitForAuthUser(authUserId: string): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const { error } = await supabaseAdmin().auth.admin.getUserById(authUserId);
+    if (!error) return;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error(`auth user ${authUserId} never became readable`);
 }
 
 /**
@@ -220,6 +265,29 @@ const SWEEPABLE = [
   "application",
   "layoutPattern",
 ] as const;
+
+/**
+ * Collections the suite created, swept behind the same interlock.
+ *
+ * The specs create real collections against the real tenant, so without
+ * this they accumulate the way the taxonomy rows did.
+ */
+export async function purgeTestCollections(): Promise<number> {
+  const stale = await prisma().collection.findMany({
+    where: { slug: { startsWith: TEST_KEY_PREFIX } },
+    select: { id: true, slug: true },
+  });
+
+  for (const row of stale) {
+    if (!row.slug.startsWith(TEST_KEY_PREFIX)) {
+      throw new Error(`refusing to delete collection "${row.slug}"`);
+    }
+    // Translations cascade on delete.
+    await prisma().collection.deleteMany({ where: { id: row.id } });
+  }
+
+  return stale.length;
+}
 
 export async function purgeTestTaxonomy(): Promise<number> {
   let removed = 0;

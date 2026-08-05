@@ -4,18 +4,18 @@
 
 ## What docs/01 §10 says
 
-| # | Phase |
-|---|---|
-| 5 | AI retrieval core — embedding pipeline, pgvector + HNSW, hybrid search, **evaluation harness with a labelled test set** |
-| 6 | Tile Finder |
-| 7 | Interior Assistant |
-| 8 | Admin AI ingestion — *"Then: bulk-load the real catalog."* |
-| 9 | Launch hardening |
+| #   | Phase                                                                                                                   |
+| --- | ----------------------------------------------------------------------------------------------------------------------- |
+| 5   | AI retrieval core — embedding pipeline, pgvector + HNSW, hybrid search, **evaluation harness with a labelled test set** |
+| 6   | Tile Finder                                                                                                             |
+| 7   | Interior Assistant                                                                                                      |
+| 8   | Admin AI ingestion — _"Then: bulk-load the real catalog."_                                                              |
+| 9   | Launch hardening                                                                                                        |
 
 ## The problem
 
-Phase 1's deliverable was specced as *"seed data (~40 real products from your
-catalog)"*. That never happened — the seed is placeholder data, because the
+Phase 1's deliverable was specced as _"seed data (~40 real products from your
+catalog)"_. That never happened — the seed is placeholder data, because the
 client's catalogue has not been supplied.
 
 Phase 5 inherits that assumption and cannot survive it. An embedding pipeline
@@ -41,8 +41,8 @@ pipeline that writes into screens nobody has used is a pipeline whose output
 nobody can check.
 
 This is a deviation from the numbered roadmap, but it follows the roadmap's
-own stated rationale: *"Business value first, brand theatre second, AI
-third."*
+own stated rationale: _"Business value first, brand theatre second, AI
+third."_
 
 ## What this is NOT
 
@@ -57,8 +57,7 @@ believing the roadmap specified it.
 ## When Phase 5 becomes startable
 
 When there is a real catalogue to embed — either supplied directly, or loaded
-through Phase 8's ingestion, which may therefore need to move ahead of Phase
-5. That reordering is not decided here; it is flagged so it is a decision
+through Phase 8's ingestion, which may therefore need to move ahead of Phase 5. That reordering is not decided here; it is flagged so it is a decision
 rather than a surprise.
 
 ## Related

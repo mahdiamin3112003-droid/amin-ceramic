@@ -34,6 +34,15 @@ export const ADMIN_NAV: readonly AdminNavSection[] = [
         prefix: true,
       },
       {
+        href: "/admin/collections",
+        label: "Collections",
+        // Brands live on the same screen: a collection's most important
+        // field after its name is which brand it belongs to, and the two
+        // are curated in the same sitting.
+        permission: "content.manage",
+        prefix: true,
+      },
+      {
         href: "/admin/taxonomy",
         label: "Taxonomy",
         // The vocabularies the catalogue filters by — materials, finishes,

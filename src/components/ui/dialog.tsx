@@ -60,6 +60,15 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           "fixed start-[50%] top-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-overlay outline-none sm:max-w-lg",
+          // A dialog taller than the viewport used to put its own submit
+          // button off-screen and out of reach — no scroll, no way to
+          // confirm, on any laptop with a short window. Capping the height
+          // and scrolling inside is the fix, and it belongs here rather than
+          // in each caller: every long form in the admin had it.
+          //
+          // `overscroll-contain` stops the scroll chaining to the page
+          // behind once the dialog reaches its end.
+          "max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain",
           "data-[state=closed]:animate-scale-out data-[state=open]:animate-scale-in",
           className,
         )}

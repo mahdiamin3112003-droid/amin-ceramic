@@ -1,6 +1,7 @@
 import {
   disconnect,
   purgeAllTestStaff,
+  purgeTestCollections,
   purgeTestQuotes,
   purgeTestTaxonomy,
 } from "./staff-fixture";
@@ -30,6 +31,11 @@ export default async function globalTeardown(): Promise<void> {
     const quotes = await purgeTestQuotes();
     if (quotes > 0) {
       console.log(`[e2e] swept ${String(quotes)} leftover quote request(s)`);
+    }
+
+    const collections = await purgeTestCollections();
+    if (collections > 0) {
+      console.log(`[e2e] swept ${String(collections)} leftover collection(s)`);
     }
   } finally {
     await disconnect();
