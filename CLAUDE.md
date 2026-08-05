@@ -113,7 +113,10 @@ pnpm db:generate      # prisma generate
   `eslint.config.mjs`.
 - **Decisions of record** — `docs/adr/`. Every place the implementation departs
   from `docs/01`–`docs/04`, with the reasoning. Fourteen so far.
-- **End-to-end suite** — `e2e/`. Playwright against a production build.
+- **End-to-end suite** — `e2e/`. Playwright against a production build,
+  52 specs. Runs in `prefers-reduced-motion` via the shared fixture in
+  `e2e/support/test.ts`, which makes every assertion double as a check that
+  the reduced-motion rule holds.
   Creates throwaway `e2e-*@e2e.invalid` staff accounts per test and deletes
   them in teardown; `assertIsTestAccount` makes it structurally unable to
   delete a real one. `e2e/support/totp.ts` computes real TOTP codes, which
@@ -140,10 +143,18 @@ pnpm db:generate      # prisma generate
 | 2 · Catalogue & quote | Complete — listing, facets, search, PDP, compare, basket, quote, samples. |
 | 3 · Brand & motion | Complete — real logo, assembly intro, homepage, global chrome. |
 | 4 · Admin foundation | Complete — auth + TOTP, RBAC across three layers, dashboard shell, product CRUD, media library, inventory, audit log. |
+| — · Admin completion | Complete — taxonomy CRUD, quote-requests board, settings, staff/roles, trade accounts. Not a numbered phase; see below. |
 | 5+ | Not started. **Do not begin the next phase without being asked.** |
 
-Phase 4 left these deliberately for later, so they are not mistaken for gaps:
-`/admin/collections` and `/admin/requests` (Phase 6), `/admin/settings` plus
-user and role management (Phase 7), and `price.trade.*` / trade-tier admin
-(no UI consumes those permissions yet). None appear in the admin nav — a nav
-item that 404s reads as a bug rather than as an unbuilt section.
+**"Admin completion" is not in docs/01 §10.** The roadmap's phases 5–9 are
+AI retrieval, Tile Finder, Interior Assistant, AI ingestion and launch
+hardening. This slice was inserted before Phase 5 because Phase 5 needs
+embeddings over REAL products plus a labelled evaluation set, and the real
+catalogue is not bulk-loaded until Phase 8 — the roadmap assumes Phase 1's
+"~40 real products" seed exists, and it does not. Recorded in
+[ADR-0014](docs/adr/0014-admin-completion-before-ai.md).
+
+Still deliberately unbuilt, so they are not mistaken for gaps: the AI
+conversation transcript and one-click WhatsApp reply on the request detail
+(phases 7 and 9), quote-PDF generation, and drag-to-move on the requests
+board (the board ships with explicit move controls — see the commit).
