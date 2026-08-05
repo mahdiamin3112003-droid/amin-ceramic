@@ -38,6 +38,14 @@ export interface AdminMutationContext {
   readonly tenantId: string;
   readonly appUserId: string;
   readonly email: string;
+  /**
+   * The caller's roles, for the handful of operations that are restricted
+   * by ROLE rather than by permission — docs/04 §14.5 marks
+   * `updateUserRoles` and `resetUserMfa` "owner only", which no permission
+   * key expresses. `role.manage` happens to be owner-only in the seed, but
+   * that is a seed fact rather than a guarantee.
+   */
+  readonly roleKeys: readonly string[];
 }
 
 export async function adminMutation<T>(
@@ -56,6 +64,7 @@ export async function adminMutation<T>(
     tenantId,
     appUserId: session.appUserId,
     email: session.email,
+    roleKeys: session.roleKeys,
   };
 
   return withRequestContext(
@@ -101,6 +110,11 @@ export async function adminQuery<T>(
       permissions: session.permissions,
     },
     async (tx) =>
-      fn(tx, { tenantId, appUserId: session.appUserId, email: session.email }),
+      fn(tx, {
+        tenantId,
+        appUserId: session.appUserId,
+        email: session.email,
+        roleKeys: session.roleKeys,
+      }),
   );
 }

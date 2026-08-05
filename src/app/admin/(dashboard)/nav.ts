@@ -75,7 +75,15 @@ export const ADMIN_NAV: readonly AdminNavSection[] = [
         permission: "audit.read",
         prefix: true,
       },
-      // Settings (`settings.write`) and user/role management are Phase 7.
+      {
+        href: "/admin/settings",
+        label: "Settings",
+        // `settings.write` covers the general tab; the staff and trade tabs
+        // demand `user.manage` in their own use-cases, so someone holding
+        // only `settings.write` sees the section but not those two.
+        permission: "settings.write",
+        prefix: true,
+      },
     ],
   },
 ];
