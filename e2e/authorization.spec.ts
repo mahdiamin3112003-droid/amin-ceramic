@@ -3,6 +3,7 @@ import { expect, test } from "./support/test";
 import {
   createTestStaff,
   deleteTestStaff,
+  getSharedTestStaff,
   type TestStaff,
 } from "./support/staff-fixture";
 import { signInFully } from "./support/sign-in";
@@ -26,10 +27,7 @@ test.describe("viewer — read-only", () => {
   // DO, never the account record itself, so a fresh account per test was
   // pure Supabase Auth churn. Sign-in stays per test.
   test.beforeAll(async () => {
-    staff = await createTestStaff("viewer");
-  });
-  test.afterAll(async () => {
-    await deleteTestStaff(staff);
+    staff = await getSharedTestStaff("viewer");
   });
 
   test.beforeEach(async ({ page }) => {
@@ -89,10 +87,7 @@ test.describe("editor — catalogue, but not everything", () => {
   // DO, never the account record itself, so a fresh account per test was
   // pure Supabase Auth churn. Sign-in stays per test.
   test.beforeAll(async () => {
-    staff = await createTestStaff("editor");
-  });
-  test.afterAll(async () => {
-    await deleteTestStaff(staff);
+    staff = await getSharedTestStaff("editor");
   });
 
   test.beforeEach(async ({ page }) => {
@@ -134,10 +129,7 @@ test.describe("sales — the showroom floor", () => {
   // DO, never the account record itself, so a fresh account per test was
   // pure Supabase Auth churn. Sign-in stays per test.
   test.beforeAll(async () => {
-    staff = await createTestStaff("sales");
-  });
-  test.afterAll(async () => {
-    await deleteTestStaff(staff);
+    staff = await getSharedTestStaff("sales");
   });
 
   test.beforeEach(async ({ page }) => {
@@ -170,10 +162,7 @@ test.describe("owner — full access", () => {
   // DO, never the account record itself, so a fresh account per test was
   // pure Supabase Auth churn. Sign-in stays per test.
   test.beforeAll(async () => {
-    staff = await createTestStaff("owner");
-  });
-  test.afterAll(async () => {
-    await deleteTestStaff(staff);
+    staff = await getSharedTestStaff("owner");
   });
 
   test.beforeEach(async ({ page }) => {

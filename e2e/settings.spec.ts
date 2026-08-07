@@ -1,9 +1,5 @@
 import { expect, test } from "./support/test";
-import {
-  createTestStaff,
-  deleteTestStaff,
-  type TestStaff,
-} from "./support/staff-fixture";
+import { getSharedTestStaff, type TestStaff } from "./support/staff-fixture";
 import { signInFully } from "./support/sign-in";
 
 /**
@@ -20,11 +16,7 @@ test.describe("settings as an owner", () => {
   // One owner for the block — these tests read settings and act on OTHER
   // people's records, never on this account itself.
   test.beforeAll(async () => {
-    staff = await createTestStaff("owner");
-  });
-  test.afterAll(async () => {
-    if (staff) await deleteTestStaff(staff);
-    staff = undefined;
+    staff = await getSharedTestStaff("owner");
   });
 
   test.beforeEach(async ({ page }) => {
@@ -92,17 +84,11 @@ test.describe("settings as an owner", () => {
 
 test.describe("settings authorisation", () => {
   test("an editor cannot reach settings at all", async ({ page }) => {
-    const staff = await createTestStaff("editor");
-    try {
-      await signInFully(page, staff);
-      await page.goto("/admin/settings");
-      // editor holds neither settings.write nor user.manage.
-      await expect(
-        page.getByRole("heading", { name: /didn.t work/i }),
-      ).toBeVisible();
-    } finally {
-      await deleteTestStaff(staff);
-    }
+    const staff = await getSharedTestStaff("editor");
+    await signInFully(page, staff);
+    await page.goto("/admin/settings");
+    // editor holds neither settings.write nor user.manage.
+    await expect(page.getByRole("heading", { name: /didn.t work/i })).toBeVisible();
   });
 
   test("an admin reaches settings but role changes stay owner-only", async ({
@@ -111,34 +97,24 @@ test.describe("settings authorisation", () => {
     // `admin` holds every permission except role.manage and tenant.manage,
     // so it is the case that proves the owner gate is a ROLE check and not
     // just a permission check.
-    const staff = await createTestStaff("admin");
-    try {
-      await signInFully(page, staff);
+    const staff = await getSharedTestStaff("admin");
+    await signInFully(page, staff);
 
-      await page.goto("/admin/settings/users");
-      await expect(
-        page.getByRole("heading", { name: "Staff & roles" }),
-      ).toBeVisible();
+    await page.goto("/admin/settings/users");
+    await expect(
+      page.getByRole("heading", { name: "Staff & roles" }),
+    ).toBeVisible();
 
-      // The Roles button is owner-only, so it is not rendered at all.
-      const ownRow = page.getByRole("row").filter({ hasText: staff.email });
-      await expect(ownRow.getByRole("button", { name: "Roles" })).toBeHidden();
-      await expect(ownRow.getByRole("button", { name: /reset 2fa/i })).toBeHidden();
-    } finally {
-      await deleteTestStaff(staff);
-    }
+    // The Roles button is owner-only, so it is not rendered at all.
+    const ownRow = page.getByRole("row").filter({ hasText: staff.email });
+    await expect(ownRow.getByRole("button", { name: "Roles" })).toBeHidden();
+    await expect(ownRow.getByRole("button", { name: /reset 2fa/i })).toBeHidden();
   });
 
   test("a viewer cannot reach the staff list", async ({ page }) => {
-    const staff = await createTestStaff("viewer");
-    try {
-      await signInFully(page, staff);
-      await page.goto("/admin/settings/users");
-      await expect(
-        page.getByRole("heading", { name: /didn.t work/i }),
-      ).toBeVisible();
-    } finally {
-      await deleteTestStaff(staff);
-    }
+    const staff = await getSharedTestStaff("viewer");
+    await signInFully(page, staff);
+    await page.goto("/admin/settings/users");
+    await expect(page.getByRole("heading", { name: /didn.t work/i })).toBeVisible();
   });
 });

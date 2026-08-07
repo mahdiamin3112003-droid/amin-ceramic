@@ -3,6 +3,7 @@ import { expect, test } from "./support/test";
 import {
   createTestStaff,
   deleteTestStaff,
+  getSharedTestStaff,
   listFactors,
   type TestStaff,
 } from "./support/staff-fixture";
@@ -32,10 +33,7 @@ test.describe("sign in", () => {
   // these tests sign in and out of it — so creating a fresh one per test
   // bought nothing and cost a Supabase Auth admin call each time.
   test.beforeAll(async () => {
-    staff = await createTestStaff("viewer");
-  });
-  test.afterAll(async () => {
-    await deleteTestStaff(staff);
+    staff = await getSharedTestStaff("viewer");
   });
 
   test("a read-only role signs in and lands on the dashboard", async ({ page }) => {
@@ -105,10 +103,7 @@ test.describe("sign out", () => {
   // these tests sign in and out of it — so creating a fresh one per test
   // bought nothing and cost a Supabase Auth admin call each time.
   test.beforeAll(async () => {
-    staff = await createTestStaff("viewer");
-  });
-  test.afterAll(async () => {
-    await deleteTestStaff(staff);
+    staff = await getSharedTestStaff("viewer");
   });
 
   test("ends the session and re-protects every route", async ({ page }) => {
@@ -134,10 +129,7 @@ test.describe("session persistence", () => {
   // these tests sign in and out of it — so creating a fresh one per test
   // bought nothing and cost a Supabase Auth admin call each time.
   test.beforeAll(async () => {
-    staff = await createTestStaff("viewer");
-  });
-  test.afterAll(async () => {
-    await deleteTestStaff(staff);
+    staff = await getSharedTestStaff("viewer");
   });
 
   test("survives a reload and a fresh tab in the same context", async ({

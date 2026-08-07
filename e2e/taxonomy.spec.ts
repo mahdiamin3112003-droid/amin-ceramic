@@ -1,10 +1,6 @@
 import { expect, test } from "./support/test";
 
-import {
-  createTestStaff,
-  deleteTestStaff,
-  type TestStaff,
-} from "./support/staff-fixture";
+import { getSharedTestStaff, type TestStaff } from "./support/staff-fixture";
 import { signInFully } from "./support/sign-in";
 
 /**
@@ -22,10 +18,7 @@ test.describe("taxonomy", () => {
   // browser context; only the account creation is hoisted.
   test.beforeAll(async () => {
     // `editor` holds content.manage — the taxonomy permission.
-    staff = await createTestStaff("editor");
-  });
-  test.afterAll(async () => {
-    await deleteTestStaff(staff);
+    staff = await getSharedTestStaff("editor");
   });
 
   test.beforeEach(async ({ page }) => {
@@ -117,29 +110,17 @@ test.describe("taxonomy", () => {
 
 test.describe("taxonomy authorisation", () => {
   test("a viewer cannot reach it", async ({ page }) => {
-    const staff = await createTestStaff("viewer");
-    try {
-      await signInFully(page, staff);
-      await page.goto("/admin/taxonomy");
-      await expect(
-        page.getByRole("heading", { name: /didn.t work/i }),
-      ).toBeVisible();
-    } finally {
-      await deleteTestStaff(staff);
-    }
+    const staff = await getSharedTestStaff("viewer");
+    await signInFully(page, staff);
+    await page.goto("/admin/taxonomy");
+    await expect(page.getByRole("heading", { name: /didn.t work/i })).toBeVisible();
   });
 
   test("sales cannot reach it either", async ({ page }) => {
-    const staff = await createTestStaff("sales");
-    try {
-      await signInFully(page, staff);
-      await page.goto("/admin/taxonomy/material");
-      await expect(
-        page.getByRole("heading", { name: /didn.t work/i }),
-      ).toBeVisible();
-    } finally {
-      await deleteTestStaff(staff);
-    }
+    const staff = await getSharedTestStaff("sales");
+    await signInFully(page, staff);
+    await page.goto("/admin/taxonomy/material");
+    await expect(page.getByRole("heading", { name: /didn.t work/i })).toBeVisible();
   });
 });
 

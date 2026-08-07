@@ -124,20 +124,16 @@ export async function getTenantId(): Promise<string> {
  * gives that role, so asserting it CANNOT reach a write is a genuine test
  * of the permission system rather than of a mock.
  *
- * ── Call this from `beforeAll`, not `beforeEach` ──
- * One account per DESCRIBE BLOCK, not one per test. Every call is a
- * Supabase Auth admin write, and sustained churn makes Supabase answer
- * sign-ins for just-created accounts with `403 user_not_found` — which
- * surfaces as a sign-in that stalls until the test times out, on a
- * different test every run. Hoisting took the suite from 59 accounts per
- * run to roughly 23. Sign-in still belongs in `beforeEach`: each test gets
- * a fresh browser context and must establish its own session.
- *
- * The exception is a test that mutates the ACCOUNT rather than the data —
- * enrolling TOTP, suspending it, changing its role. Those keep a per-test
- * account, because a shared one would carry the mutation into the next
- * test and quietly stop testing anything. `auth-flow.spec.ts`'s two-factor
- * block is the worked example.
+ * ── Prefer `getSharedTestStaff` ──
+ * This creates a NEW account every call, and every call is a Supabase Auth
+ * admin write. Sustained churn makes Supabase answer sign-ins for
+ * just-created accounts with `403 user_not_found`, which surfaces as a
+ * sign-in that stalls until the test times out, on a different test every
+ * run. Reach for this only when the test mutates the ACCOUNT rather than
+ * the data — enrolling TOTP, suspending it, changing its role. Those need a
+ * per-test account, because a shared one would carry the mutation into the
+ * next test and quietly stop testing anything. `auth-flow.spec.ts`'s
+ * two-factor block is the worked example.
  */
 export async function createTestStaff(roleKey: string): Promise<TestStaff> {
   const tenantId = await getTenantId();
@@ -215,11 +211,58 @@ async function waitForAuthUser(authUserId: string): Promise<void> {
 }
 
 /**
+ * ONE account per role, shared by every spec in the run.
+ *
+ * ── Why run-scoped and not block-scoped ──
+ * Block-scoped reuse took the suite from 59 accounts to ~23 and cut the
+ * `403 user_not_found` flake down to roughly one test per run, but not to
+ * zero: nine describe blocks across five files each still created their own
+ * `viewer` or `editor`, and the authorisation blocks create one per test
+ * because each test needs a DIFFERENT role. Sharing by role across the
+ * whole run collapses all of that to five accounts — one per seeded role,
+ * confirmed by teardown reporting exactly five swept.
+ *
+ * That took the admin half from a rotating one-test failure to 59/59, and
+ * from 15.6 to 10.7 minutes: signing in to an account that already exists
+ * is far cheaper than creating one and then signing in.
+ *
+ * The suite runs single-worker (see playwright.config.ts), so this module
+ * is instantiated once and the map genuinely spans every spec file. Under
+ * multiple workers each worker would get its own set, which is still
+ * correct, just less of a saving.
+ *
+ * ── Never delete these ──
+ * There is deliberately no matching `release`. A spec that deleted a shared
+ * account would break every later spec using that role, in a way that looks
+ * like an authorisation bug. `purgeAllTestStaff` in global teardown sweeps
+ * them at the end of the run, which is the same net that already catches a
+ * killed worker's leftovers.
+ *
+ * The promise, not the account, is memoised — two blocks calling this
+ * before the first create resolves must not produce two accounts.
+ */
+const sharedStaffByRole = new Map<string, Promise<TestStaff>>();
+
+export function getSharedTestStaff(roleKey: string): Promise<TestStaff> {
+  const existing = sharedStaffByRole.get(roleKey);
+  if (existing) return existing;
+
+  const created = createTestStaff(roleKey);
+  sharedStaffByRole.set(roleKey, created);
+  // A failed create must not be cached, or every later block inherits it.
+  created.catch(() => sharedStaffByRole.delete(roleKey));
+  return created;
+}
+
+/**
  * Remove an account and everything created alongside it.
  *
  * Order matters: the `app_user` row goes first so that a failure deleting
  * the auth user cannot leave an orphaned staff record that would still
  * resolve to a session.
+ *
+ * Only for accounts from `createTestStaff`. Never call this on one from
+ * `getSharedTestStaff` — see the note there.
  */
 export async function deleteTestStaff(staff: TestStaff): Promise<void> {
   assertIsTestAccount(staff.email);

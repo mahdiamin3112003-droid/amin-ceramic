@@ -1,9 +1,8 @@
 import { expect, test } from "./support/test";
 import {
   createTestQuoteRequest,
-  createTestStaff,
   deleteTestQuoteRequest,
-  deleteTestStaff,
+  getSharedTestStaff,
   type TestQuote,
   type TestStaff,
 } from "./support/staff-fixture";
@@ -28,11 +27,7 @@ test.describe("board", () => {
    */
   test.beforeAll(async () => {
     // `sales` is the showroom role: request.read + request.respond.
-    staff = await createTestStaff("sales");
-  });
-  test.afterAll(async () => {
-    if (staff) await deleteTestStaff(staff);
-    staff = undefined;
+    staff = await getSharedTestStaff("sales");
   });
 
   test.beforeEach(async ({ page }) => {
@@ -176,37 +171,27 @@ test.describe("board authorisation", () => {
   }
 
   test("a viewer can read the pipeline but not move anything", async ({ page }) => {
-    const staff = await createTestStaff("viewer");
-    try {
-      await signInFully(page, staff);
-      await page.goto("/admin/requests");
+    const staff = await getSharedTestStaff("viewer");
+    await signInFully(page, staff);
+    await page.goto("/admin/requests");
 
-      // viewer holds request.read …
-      await expect(
-        page.getByRole("heading", { name: "Quote requests" }),
-      ).toBeVisible();
-      await expect(page.getByText(ref())).toBeVisible();
+    // viewer holds request.read …
+    await expect(
+      page.getByRole("heading", { name: "Quote requests" }),
+    ).toBeVisible();
+    await expect(page.getByText(ref())).toBeVisible();
 
-      // … but not request.respond, so no card offers a move.
-      const card = page.getByRole("listitem").filter({ hasText: ref() });
-      await expect(card.getByRole("button", { name: "Acknowledged" })).toBeHidden();
-      await expect(page.getByText(/read the pipeline but not move/i)).toBeVisible();
-    } finally {
-      await deleteTestStaff(staff);
-    }
+    // … but not request.respond, so no card offers a move.
+    const card = page.getByRole("listitem").filter({ hasText: ref() });
+    await expect(card.getByRole("button", { name: "Acknowledged" })).toBeHidden();
+    await expect(page.getByText(/read the pipeline but not move/i)).toBeVisible();
   });
 
   test("an editor cannot reach it at all", async ({ page }) => {
-    const staff = await createTestStaff("editor");
-    try {
-      await signInFully(page, staff);
-      await page.goto("/admin/requests");
-      // editor holds neither request.read nor request.respond.
-      await expect(
-        page.getByRole("heading", { name: /didn.t work/i }),
-      ).toBeVisible();
-    } finally {
-      await deleteTestStaff(staff);
-    }
+    const staff = await getSharedTestStaff("editor");
+    await signInFully(page, staff);
+    await page.goto("/admin/requests");
+    // editor holds neither request.read nor request.respond.
+    await expect(page.getByRole("heading", { name: /didn.t work/i })).toBeVisible();
   });
 });
