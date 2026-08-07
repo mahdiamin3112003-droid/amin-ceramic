@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { routing } from "@/i18n/routing";
 import { updateSession } from "@/infrastructure/auth/middleware-session";
+import { buildContentSecurityPolicy, generateCspNonce } from "@/lib/security/csp";
 import {
   VISITOR_COOKIE_MAX_AGE_SECONDS,
   VISITOR_COOKIE_NAME,
@@ -29,19 +30,41 @@ const intlMiddleware = createMiddleware(routing);
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  /**
+   * CSP first — docs/04 §24.1.
+   *
+   * The nonce goes onto the REQUEST headers, not just the response, and the
+   * ordering is the whole trick. Next reads the nonce out of the
+   * `Content-Security-Policy` request header and stamps it onto its own
+   * inline bootstrap scripts (the `self.__next_f.push(...)` hydration
+   * payload). Set it only on the response and those scripts ship unnonced,
+   * the browser blocks them, and the site does not hydrate at all.
+   *
+   * `x-nonce` is the same value under a name the app can read, for the one
+   * inline script we author ourselves (`IntroGate`).
+   */
+  const nonce = generateCspNonce();
+  const csp = buildContentSecurityPolicy({
+    nonce,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    isDevelopment: process.env.NODE_ENV === "development",
+  });
+  request.headers.set("x-nonce", nonce);
+  request.headers.set("content-security-policy", csp);
+
   // Admin is OUTSIDE `[locale]` (docs/02 §1.2) and English-only in v1, so it
   // bypasses locale negotiation entirely.
-  if (pathname.startsWith("/admin")) {
-    const response = await guardAdminRoute(request);
-    await ensureVisitorCookie(request, response);
-    return response;
-  }
-
-  const response = pathname.startsWith("/api")
-    ? NextResponse.next()
-    : intlMiddleware(request);
+  const response = pathname.startsWith("/admin")
+    ? await guardAdminRoute(request)
+    : pathname.startsWith("/api")
+      ? NextResponse.next({ request })
+      : intlMiddleware(request);
 
   await ensureVisitorCookie(request, response);
+
+  // Every response, including the redirects above — a redirect that carries
+  // no policy is a gap on exactly the routes that matter most.
+  response.headers.set("content-security-policy", csp);
 
   return response;
 }

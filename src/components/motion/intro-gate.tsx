@@ -52,6 +52,12 @@ const SCRIPT = `(function(){
   }
 })();`;
 
-export function IntroGate() {
-  return <script dangerouslySetInnerHTML={{ __html: SCRIPT }} />;
+/**
+ * `nonce` comes from the middleware via the `x-nonce` request header. It is
+ * required, not optional: under the CSP in docs/04 §24.1 an inline script
+ * without one is blocked, `data-intro` is never stamped, and the rules in
+ * globals.css that depend on it never fire.
+ */
+export function IntroGate({ nonce }: { nonce: string | undefined }) {
+  return <script nonce={nonce} dangerouslySetInnerHTML={{ __html: SCRIPT }} />;
 }

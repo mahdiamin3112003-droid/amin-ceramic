@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -75,6 +76,10 @@ export default async function LocaleLayout({
 
   const t = await getTranslations({ locale, namespace: "common" });
 
+  // Stamped by the middleware. Read here rather than inside IntroGate so the
+  // dynamic dependency is visible at the layout level.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   // Sequential, not Promise.all — RUNTIME_DATABASE_URL is a connection_limit=1
   // pooler and each of these opens its own withRequestContext transaction
   // (same constraint documented on the /products page).
@@ -90,8 +95,9 @@ export default async function LocaleLayout({
     >
       <head>
         {/* Must run during HTML parse, before the first paint — see the
-            component's own note on why this cannot be a React effect. */}
-        <IntroGate />
+            component's own note on why this cannot be a React effect.
+            The nonce is what lets it past the CSP (docs/04 §24.1). */}
+        <IntroGate nonce={nonce} />
       </head>
       <body className="min-h-dvh bg-background text-foreground antialiased">
         <NextIntlClientProvider>

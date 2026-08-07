@@ -11,8 +11,11 @@ const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: false },
 
   // Security headers per docs/04-api-architecture.md §24.1.
-  // CSP with per-request nonces is added with the middleware work in Phase 4;
-  // these are the static ones that do not need a nonce.
+  //
+  // These are the static ones only. The CSP is NOT here and cannot be: it
+  // carries a per-request nonce, and everything in this block is baked at
+  // build time and identical on every response. It is set in
+  // `src/middleware.ts`, which is the only place that runs per request.
   async headers() {
     return [
       {
