@@ -73,6 +73,13 @@ function prisma(): PrismaClient {
    *
    * Falls back to the default datasource when DIRECT_URL is absent, so a
    * CI environment that only supplies one URL still works.
+   *
+   * Do NOT quietly fall back to the pooled `DATABASE_URL` when the direct
+   * connection is down. That was tried: `DATABASE_URL` carries
+   * `connection_limit=1`, so the fixture then competes with the application
+   * server for a single connection and the run collapses — 26 failed and 32
+   * never ran, none of it real. `global-setup.ts` probes this connection up
+   * front and aborts the run instead.
    */
   if (!prismaClient) {
     const directUrl = process.env.DIRECT_URL;
@@ -116,6 +123,21 @@ export async function getTenantId(): Promise<string> {
  * created here really does hold only the five read permissions the seed
  * gives that role, so asserting it CANNOT reach a write is a genuine test
  * of the permission system rather than of a mock.
+ *
+ * ── Call this from `beforeAll`, not `beforeEach` ──
+ * One account per DESCRIBE BLOCK, not one per test. Every call is a
+ * Supabase Auth admin write, and sustained churn makes Supabase answer
+ * sign-ins for just-created accounts with `403 user_not_found` — which
+ * surfaces as a sign-in that stalls until the test times out, on a
+ * different test every run. Hoisting took the suite from 59 accounts per
+ * run to roughly 23. Sign-in still belongs in `beforeEach`: each test gets
+ * a fresh browser context and must establish its own session.
+ *
+ * The exception is a test that mutates the ACCOUNT rather than the data —
+ * enrolling TOTP, suspending it, changing its role. Those keep a per-test
+ * account, because a shared one would carry the mutation into the next
+ * test and quietly stop testing anything. `auth-flow.spec.ts`'s two-factor
+ * block is the worked example.
  */
 export async function createTestStaff(roleKey: string): Promise<TestStaff> {
   const tenantId = await getTenantId();
@@ -418,6 +440,63 @@ export async function purgeTestQuotes(): Promise<number> {
     assertIsTestQuote(row.reference);
     await prisma().quoteRequest.deleteMany({ where: { id: row.id } });
     await prisma().visitor.deleteMany({ where: { id: row.visitorId } });
+  }
+
+  return stale.length;
+}
+
+/**
+ * Quote requests the PUBLIC specs submitted through the real form.
+ *
+ * These cannot carry `TEST_REFERENCE_PREFIX`. The reference is minted by the
+ * real generator inside the real Server Action — which is the entire point
+ * of submitting through the UI rather than seeding a row — so it comes out
+ * as a genuine `AC-<year>-…`. The interlock therefore moves to the contact
+ * details, which the spec DOES control, and it requires BOTH the fixture's
+ * name prefix AND the reserved `.invalid` domain, so a real enquiry cannot
+ * match by accident.
+ *
+ * Unlike `purgeTestQuotes`, the visitor row is deliberately left behind.
+ * A visitor that reached the public quote form always has a basket, and
+ * `basket.visitor_id` is `onDelete: Restrict` — so deleting it would need a
+ * cascade through basket, saved items and product views. That is a large
+ * destructive surface to run in teardown for no benefit: visitors are
+ * anonymous, the middleware mints one per browser session, and real traffic
+ * produces them constantly. The quote requests are what matter, because
+ * those surface on the admin board and would otherwise pollute a client demo.
+ */
+const TEST_SUBMISSION_NAME_PREFIX = "E2E Visitor";
+
+/** The exact identity `public-quote.spec.ts` must submit with to stay sweepable. */
+export const TEST_SUBMISSION_NAME = `${TEST_SUBMISSION_NAME_PREFIX} (automated)`;
+export const TEST_SUBMISSION_EMAIL = `e2e-visitor@${TEST_EMAIL_DOMAIN}`;
+
+function assertIsTestSubmission(name: string | null, email: string | null): void {
+  // Both nullable in the schema, and both null fails closed — an unnamed
+  // enquiry is exactly the kind of row this must never be allowed to delete.
+  const isTest =
+    (name ?? "").startsWith(TEST_SUBMISSION_NAME_PREFIX) &&
+    (email ?? "").endsWith(`@${TEST_EMAIL_DOMAIN}`);
+  if (!isTest) {
+    throw new Error(
+      `refusing to touch the quote request from "${name ?? "no name"}" <${email ?? "no email"}> — ` +
+        `the suite may only delete "${TEST_SUBMISSION_NAME_PREFIX}*" submissions at @${TEST_EMAIL_DOMAIN}`,
+    );
+  }
+}
+
+export async function purgeSubmittedTestQuotes(): Promise<number> {
+  const stale = await prisma().quoteRequest.findMany({
+    where: {
+      contactName: { startsWith: TEST_SUBMISSION_NAME_PREFIX },
+      contactEmail: { endsWith: `@${TEST_EMAIL_DOMAIN}` },
+    },
+    select: { id: true, contactName: true, contactEmail: true },
+  });
+
+  for (const row of stale) {
+    assertIsTestSubmission(row.contactName, row.contactEmail);
+    await prisma().quoteRequest.deleteMany({ where: { id: row.id } });
   }
 
   return stale.length;

@@ -2,6 +2,7 @@ import {
   disconnect,
   purgeAllTestStaff,
   purgeTestCollections,
+  purgeSubmittedTestQuotes,
   purgeTestQuotes,
   purgeTestTaxonomy,
 } from "./staff-fixture";
@@ -31,6 +32,13 @@ export default async function globalTeardown(): Promise<void> {
     const quotes = await purgeTestQuotes();
     if (quotes > 0) {
       console.log(`[e2e] swept ${String(quotes)} leftover quote request(s)`);
+    }
+
+    // The public specs submit through the real form, so these carry real
+    // `AC-…` references and are matched on contact details instead.
+    const submitted = await purgeSubmittedTestQuotes();
+    if (submitted > 0) {
+      console.log(`[e2e] swept ${String(submitted)} public quote submission(s)`);
     }
 
     const collections = await purgeTestCollections();
