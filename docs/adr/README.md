@@ -27,3 +27,5 @@ disagree with one, that is the file to argue with.
 | [0012](0012-no-token-revocation-table.md)        | No `token_revocation` table and no Redis mirror — permissions are read per request, so revocation is already immediate   |
 | [0013](0013-supabase-storage-over-cloudinary.md) | Media goes to Supabase Storage with derivatives pregenerated at upload, not Cloudinary                                   |
 | [0014](0014-staff-identity-resolver.md)          | A SECURITY DEFINER function breaks the sign-in RLS deadlock; the e2e suite is what caught it                             |
+| [0015](0015-admin-completion-before-ai.md)       | The admin is completed before Phase 5, because Phase 5 needs a real catalogue that does not exist yet                    |
+| [0016](0016-csp-nonces.md)                       | A per-request nonce CSP lives in middleware, not next.config; `style-src` keeps `unsafe-inline` and the reason is named  |

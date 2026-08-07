@@ -87,6 +87,8 @@ pnpm format           # prettier --write
 pnpm test             # vitest run — unit + the TOTP generator's RFC vectors
 pnpm test:watch       # vitest
 pnpm test:e2e         # playwright — real browser, real Supabase, real roles
+pnpm test:e2e:public  #   the 25 customer-facing specs only (~7 min, no auth)
+pnpm test:e2e:admin   #   the 59 admin/auth specs only
 pnpm test:e2e:ui      # playwright, interactive
 
 pnpm storybook        # design review surface, http://localhost:6006
@@ -112,17 +114,29 @@ pnpm db:generate      # prisma generate
   `no-transition-colors`. The layer boundary is `eslint-plugin-boundaries` in
   `eslint.config.mjs`.
 - **Decisions of record** — `docs/adr/`. Every place the implementation departs
-  from `docs/01`–`docs/04`, with the reasoning. Fourteen so far.
+  from `docs/01`–`docs/04`, with the reasoning. Sixteen so far.
 - **End-to-end suite** — `e2e/`. Playwright against a production build,
-  52 specs. Runs in `prefers-reduced-motion` via the shared fixture in
-  `e2e/support/test.ts`, which makes every assertion double as a check that
-  the reduced-motion rule holds.
+  84 specs: 59 admin/auth and 25 public (`public-catalog.spec.ts`,
+  `public-quote.spec.ts`). Runs in `prefers-reduced-motion` via the shared
+  fixture in `e2e/support/test.ts`.
   Creates throwaway `e2e-*@e2e.invalid` staff accounts per test and deletes
   them in teardown; `assertIsTestAccount` makes it structurally unable to
   delete a real one. `e2e/support/totp.ts` computes real TOTP codes, which
-  is what makes the MFA paths machine-verifiable. **These caught two bugs
+  is what makes the MFA paths machine-verifiable. **These caught three bugs
   no unit test could**: sign-in was impossible (RLS deadlock, migration
-  0025) and auth cookies were neither httpOnly nor secure.
+  0025), auth cookies were neither httpOnly nor secure, and the entire
+  public site rendered blank for reduced-motion visitors (`template.tsx`
+  SSR/client branch divergence left an inline `clip-path` uncleared).
+
+  Two lessons from that third one, both worth keeping:
+  **`toBeVisible()` does not consider `opacity` or `clip-path`** — twelve
+  assertion-only specs passed against a completely blank page, and only the
+  clicking specs failed. `public-catalog.spec.ts`'s "the page is hittable"
+  test uses a real `elementFromPoint` hit test to close that gap.
+  And **the admin specs could never have found it**: `template.tsx` wraps
+  `[locale]` only, so admin is not covered by it. Running the whole suite
+  under reduced motion proves the reduced-motion path only for the routes
+  the suite actually visits.
 - **Admin authorisation** — `src/application/auth/`. `authorize.ts` is the
   permission check, `admin-mutation.ts` is the single entry point for every
   staff write: it checks the permission, stamps the RLS claims, runs the
@@ -152,7 +166,7 @@ hardening. This slice was inserted before Phase 5 because Phase 5 needs
 embeddings over REAL products plus a labelled evaluation set, and the real
 catalogue is not bulk-loaded until Phase 8 — the roadmap assumes Phase 1's
 "~40 real products" seed exists, and it does not. Recorded in
-[ADR-0014](docs/adr/0014-admin-completion-before-ai.md).
+[ADR-0015](docs/adr/0015-admin-completion-before-ai.md).
 
 Still deliberately unbuilt, so they are not mistaken for gaps: the AI
 conversation transcript and one-click WhatsApp reply on the request detail
