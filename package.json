@@ -9,6 +9,7 @@
     "pnpm": ">=10"
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -22,6 +23,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:public": "playwright test --project=public",
+    "test:e2e:admin": "playwright test --project=admin",
     "test:e2e:ui": "playwright test --ui",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
@@ -30,7 +33,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:bootstrap-owner": "tsx prisma/bootstrap-owner.ts",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset",
+    "db:reset": "tsx prisma/guard-destructive.ts && prisma migrate reset",
     "db:generate": "prisma generate"
   },
   "dependencies": {

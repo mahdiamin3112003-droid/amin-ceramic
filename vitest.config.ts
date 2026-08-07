@@ -14,7 +14,15 @@ export default defineConfig({
     environment: "jsdom",
     globals: false,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}", "e2e/support/**/*.test.ts"],
+    include: [
+      "src/**/*.{test,spec}.{ts,tsx}",
+      "e2e/support/**/*.test.ts",
+      // The destructive-command guard lives beside the scripts it protects.
+      // It is pure decision logic, and it is the last thing standing between
+      // a habitual `pnpm db:reset` and the production catalogue, so it
+      // belongs in the fast run rather than untested outside it.
+      "prisma/**/*.test.ts",
+    ],
     // Phase 0 tests are pure: no database, no network. Repository and RLS tests
     // arrive in Phase 1 with Testcontainers (docs/01-architecture.md §8.5).
     // Only the PLAYWRIGHT specs are excluded, not all of `e2e/`. The TOTP
