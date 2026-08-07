@@ -96,7 +96,30 @@ export async function submitTotp(
 }
 
 /**
- * Sign in completely, completing enrolment when the role demands it.
+ * TOTP secrets, keyed by Supabase auth user id.
+ *
+ * ── Why this has to exist ──
+ * Signing in MUTATES the account when the role requires MFA: the first
+ * sign-in enrols a factor, and every sign-in after that is a verification
+ * against the factor already there. The two screens are different — the
+ * enrolment one carries the manual-entry disclosure and a "Confirm and
+ * continue" button, the verification one has neither.
+ *
+ * That is what broke when account creation moved to `beforeAll`: the first
+ * test in a block enrolled, and every test after it landed on the
+ * verification screen while this helper was still looking for the enrolment
+ * secret. Thirteen specs failed at once, all of them `editor`, `sales` or
+ * `owner` — the roles that require MFA. The `viewer` blocks passed
+ * throughout, which is precisely the tell.
+ *
+ * Holding the secret means an account can be signed into repeatedly, which
+ * is what makes reuse work at all.
+ */
+const enrolledSecrets = new Map<string, string>();
+
+/**
+ * Sign in completely, enrolling a second factor or verifying the existing
+ * one, whichever this account needs.
  *
  * Read-only roles never see the second factor at all — that is the
  * read-only allowlist working, asserted implicitly on every call.
@@ -107,8 +130,15 @@ export async function signInFully(page: Page, staff: TestStaff): Promise<void> {
   await page.waitForURL(/\/admin(\/2fa)?(\?.*)?$/);
   if (!page.url().includes("/admin/2fa")) return;
 
-  const secret = await readEnrolmentSecret(page);
-  await submitTotp(page, secret, /confirm and continue/i);
+  const known = enrolledSecrets.get(staff.authUserId);
+  if (known) {
+    // Already enrolled by an earlier test in this block: verify instead.
+    await submitTotp(page, known, /^verify$/i);
+  } else {
+    const secret = await readEnrolmentSecret(page);
+    enrolledSecrets.set(staff.authUserId, secret);
+    await submitTotp(page, secret, /confirm and continue/i);
+  }
 
   // `submitTotp` has already waited for the navigation off /admin/2fa, so
   // this only confirms where it landed. An extra `waitForURL("/admin")`

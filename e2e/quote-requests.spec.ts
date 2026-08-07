@@ -20,19 +20,30 @@ test.describe("board", () => {
   let staff: TestStaff | undefined;
   let quote: TestQuote | undefined;
 
-  test.beforeEach(async ({ page }) => {
+  /**
+   * The ACCOUNT is shared across the block; the QUOTE deliberately is not.
+   * These tests move a request between statuses, so each needs its own —
+   * sharing one would make every test depend on the state the previous test
+   * happened to leave it in.
+   */
+  test.beforeAll(async () => {
     // `sales` is the showroom role: request.read + request.respond.
     staff = await createTestStaff("sales");
+  });
+  test.afterAll(async () => {
+    if (staff) await deleteTestStaff(staff);
+    staff = undefined;
+  });
+
+  test.beforeEach(async ({ page }) => {
     quote = await createTestQuoteRequest("submitted");
-    await signInFully(page, staff);
+    if (staff) await signInFully(page, staff);
   });
   test.afterEach(async () => {
-    // Guarded: a beforeEach that threw partway leaves one of these unset,
-    // and an exception in teardown masks the real failure.
+    // Guarded: a beforeEach that threw partway leaves this unset, and an
+    // exception in teardown masks the real failure.
     if (quote) await deleteTestQuoteRequest(quote);
-    if (staff) await deleteTestStaff(staff);
     quote = undefined;
-    staff = undefined;
   });
 
   /**

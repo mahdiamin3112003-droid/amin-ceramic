@@ -17,13 +17,19 @@ import { signInFully } from "./support/sign-in";
 test.describe("taxonomy", () => {
   let staff: TestStaff;
 
-  test.beforeEach(async ({ page }) => {
+  // ONE account for the whole block, not one per test — see the note on
+  // `createTestStaff`. Sign-in still happens per test, against a fresh
+  // browser context; only the account creation is hoisted.
+  test.beforeAll(async () => {
     // `editor` holds content.manage — the taxonomy permission.
     staff = await createTestStaff("editor");
-    await signInFully(page, staff);
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await deleteTestStaff(staff);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await signInFully(page, staff);
   });
 
   test("the hub lists every vocabulary", async ({ page }) => {

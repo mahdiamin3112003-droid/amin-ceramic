@@ -22,12 +22,18 @@ import { signInFully } from "./support/sign-in";
 test.describe("viewer — read-only", () => {
   let staff: TestStaff;
 
-  test.beforeEach(async ({ page }) => {
+  // One account for the block: these tests probe what a role may READ and
+  // DO, never the account record itself, so a fresh account per test was
+  // pure Supabase Auth churn. Sign-in stays per test.
+  test.beforeAll(async () => {
     staff = await createTestStaff("viewer");
-    await signInFully(page, staff);
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await deleteTestStaff(staff);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await signInFully(page, staff);
   });
 
   test("sees only the sections its permissions cover", async ({ page }) => {
@@ -79,12 +85,18 @@ test.describe("viewer — read-only", () => {
 test.describe("editor — catalogue, but not everything", () => {
   let staff: TestStaff;
 
-  test.beforeEach(async ({ page }) => {
+  // One account for the block: these tests probe what a role may READ and
+  // DO, never the account record itself, so a fresh account per test was
+  // pure Supabase Auth churn. Sign-in stays per test.
+  test.beforeAll(async () => {
     staff = await createTestStaff("editor");
-    await signInFully(page, staff);
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await deleteTestStaff(staff);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await signInFully(page, staff);
   });
 
   test("reaches products and media", async ({ page }) => {
@@ -118,12 +130,18 @@ test.describe("editor — catalogue, but not everything", () => {
 test.describe("sales — the showroom floor", () => {
   let staff: TestStaff;
 
-  test.beforeEach(async ({ page }) => {
+  // One account for the block: these tests probe what a role may READ and
+  // DO, never the account record itself, so a fresh account per test was
+  // pure Supabase Auth churn. Sign-in stays per test.
+  test.beforeAll(async () => {
     staff = await createTestStaff("sales");
-    await signInFully(page, staff);
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await deleteTestStaff(staff);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await signInFully(page, staff);
   });
 
   test("may adjust stock", async ({ page }) => {
@@ -148,12 +166,18 @@ test.describe("sales — the showroom floor", () => {
 test.describe("owner — full access", () => {
   let staff: TestStaff;
 
-  test.beforeEach(async ({ page }) => {
+  // One account for the block: these tests probe what a role may READ and
+  // DO, never the account record itself, so a fresh account per test was
+  // pure Supabase Auth churn. Sign-in stays per test.
+  test.beforeAll(async () => {
     staff = await createTestStaff("owner");
-    await signInFully(page, staff);
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await deleteTestStaff(staff);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await signInFully(page, staff);
   });
 
   test("reaches every built section", async ({ page }) => {

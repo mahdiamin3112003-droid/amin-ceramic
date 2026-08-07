@@ -17,13 +17,18 @@ import { signInFully } from "./support/sign-in";
 test.describe("settings as an owner", () => {
   let staff: TestStaff | undefined;
 
-  test.beforeEach(async ({ page }) => {
+  // One owner for the block — these tests read settings and act on OTHER
+  // people's records, never on this account itself.
+  test.beforeAll(async () => {
     staff = await createTestStaff("owner");
-    await signInFully(page, staff);
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     if (staff) await deleteTestStaff(staff);
     staff = undefined;
+  });
+
+  test.beforeEach(async ({ page }) => {
+    if (staff) await signInFully(page, staff);
   });
 
   test("the three sections are reachable", async ({ page }) => {

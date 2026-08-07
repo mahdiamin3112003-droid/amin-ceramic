@@ -28,10 +28,13 @@ const signIn = submitCredentials;
 test.describe("sign in", () => {
   let staff: TestStaff;
 
-  test.beforeEach(async () => {
+  // One account for the block. Nothing here mutates the account itself —
+  // these tests sign in and out of it — so creating a fresh one per test
+  // bought nothing and cost a Supabase Auth admin call each time.
+  test.beforeAll(async () => {
     staff = await createTestStaff("viewer");
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await deleteTestStaff(staff);
   });
 
@@ -98,10 +101,13 @@ test.describe("sign in", () => {
 test.describe("sign out", () => {
   let staff: TestStaff;
 
-  test.beforeEach(async () => {
+  // One account for the block. Nothing here mutates the account itself —
+  // these tests sign in and out of it — so creating a fresh one per test
+  // bought nothing and cost a Supabase Auth admin call each time.
+  test.beforeAll(async () => {
     staff = await createTestStaff("viewer");
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await deleteTestStaff(staff);
   });
 
@@ -124,10 +130,13 @@ test.describe("sign out", () => {
 test.describe("session persistence", () => {
   let staff: TestStaff;
 
-  test.beforeEach(async () => {
+  // One account for the block. Nothing here mutates the account itself —
+  // these tests sign in and out of it — so creating a fresh one per test
+  // bought nothing and cost a Supabase Auth admin call each time.
+  test.beforeAll(async () => {
     staff = await createTestStaff("viewer");
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await deleteTestStaff(staff);
   });
 
@@ -200,6 +209,14 @@ test.describe("session persistence", () => {
 test.describe("two-factor authentication", () => {
   let staff: TestStaff;
 
+  /**
+   * DELIBERATELY per-test, unlike every other block in this file.
+   *
+   * These tests enrol a TOTP factor, which mutates the account itself. A
+   * shared account would carry a verified factor into the next test, so
+   * "is this role forced through enrolment?" would pass for the first test
+   * and silently stop testing anything for the rest.
+   */
   test.beforeEach(async () => {
     // `editor` holds media.manage and content.manage, so MFA is mandatory.
     staff = await createTestStaff("editor");

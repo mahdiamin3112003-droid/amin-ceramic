@@ -16,14 +16,18 @@ import { signInFully } from "./support/sign-in";
 test.describe("collections", () => {
   let staff: TestStaff | undefined;
 
-  test.beforeEach(async ({ page }) => {
+  // One account for the block, not one per test — see `createTestStaff`.
+  test.beforeAll(async () => {
     // `editor` holds content.manage.
     staff = await createTestStaff("editor");
-    await signInFully(page, staff);
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     if (staff) await deleteTestStaff(staff);
     staff = undefined;
+  });
+
+  test.beforeEach(async ({ page }) => {
+    if (staff) await signInFully(page, staff);
   });
 
   test("shows both tabs", async ({ page }) => {
@@ -91,13 +95,16 @@ test.describe("collections", () => {
 test.describe("brands", () => {
   let staff: TestStaff | undefined;
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeAll(async () => {
     staff = await createTestStaff("editor");
-    await signInFully(page, staff);
   });
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     if (staff) await deleteTestStaff(staff);
     staff = undefined;
+  });
+
+  test.beforeEach(async ({ page }) => {
+    if (staff) await signInFully(page, staff);
   });
 
   test("a brand in use cannot be hidden, and says why", async ({ page }) => {
