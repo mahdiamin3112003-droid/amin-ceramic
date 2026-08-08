@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { fail, ok, type ActionResult } from "@/application/actions/result";
 import { createSupabaseServerClient } from "@/infrastructure/auth/supabase-server";
 import { getStaffSession } from "@/infrastructure/auth/staff-session";
+import { siteUrl } from "@/lib/seo/site";
 import {
   enrolTotpSchema,
   forgotPasswordSchema,
@@ -216,10 +217,16 @@ export async function forgotPasswordAction(
   try {
     const { email } = forgotPasswordSchema.parse(input);
     const supabase = await createSupabaseServerClient();
-    const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
+    // `siteUrl` (src/lib/seo/site.ts), not a bare `process.env.NEXT_PUBLIC_SITE_URL`
+    // read: that var is deliberately left unset until a custom domain exists
+    // (see docs/deployment), and reading it directly here — instead of through
+    // the shared helper that falls back to Vercel's own
+    // VERCEL_PROJECT_PRODUCTION_URL — sent every reset link to
+    // http://localhost:3000/admin/reset on the deployed site. Caught live: a
+    // real reset email whose link failed to connect.
     await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${origin}/admin/reset`,
+      redirectTo: `${siteUrl}/admin/reset`,
     });
 
     return ok(null);

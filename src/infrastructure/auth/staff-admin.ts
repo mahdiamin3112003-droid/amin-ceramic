@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getSupabaseAdmin } from "@/infrastructure/auth/supabase-admin";
+import { siteUrl } from "@/lib/seo/site";
 
 /**
  * Supabase Auth operations that act on OTHER people's accounts.
@@ -26,10 +27,13 @@ import { getSupabaseAdmin } from "@/infrastructure/auth/supabase-admin";
  */
 export async function inviteStaffByEmail(email: string): Promise<string> {
   const admin = getSupabaseAdmin();
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
+  // Same bug, same fix as forgotPasswordAction (auth-actions.ts): a bare
+  // `process.env.NEXT_PUBLIC_SITE_URL` read falls back to localhost on the
+  // deployed site, because that var is deliberately left unset. `siteUrl`
+  // falls back to Vercel's own VERCEL_PROJECT_PRODUCTION_URL instead.
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${origin}/admin/login`,
+    redirectTo: `${siteUrl}/admin/login`,
   });
 
   if (!error) return data.user.id;
