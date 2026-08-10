@@ -203,6 +203,26 @@
     "noProducts": "No products in this collection yet.",
     "browseAll": "Browse all products"
   },
+  "catalogue": {
+    "enter": "Browse as catalogue",
+    "exit": "Close catalogue",
+    "previous": "Previous tile",
+    "next": "Next tile",
+    "position": "{current} / {total}",
+    "announce": "Page {current} of {total}. {name}.",
+    "hint": "Arrow keys or swipe",
+    "fullDetails": "Full details",
+    "empty": "This collection has no tiles to browse yet.",
+    "facts": {
+      "format": "Format",
+      "thickness": "Thickness",
+      "finish": "Finish",
+      "suitableFor": "Suitable for",
+      "both": "Indoor & outdoor",
+      "outdoorOnly": "Outdoor",
+      "indoorOnly": "Indoor"
+    }
+  },
   "wishlist": {
     "title": "Wishlist",
     "empty": "You haven't saved any tiles yet.",

@@ -203,6 +203,26 @@
     "noProducts": "لا توجد منتجات في هذه المجموعة بعد.",
     "browseAll": "تصفّح كل المنتجات"
   },
+  "catalogue": {
+    "enter": "تصفّح ككتالوج",
+    "exit": "إغلاق الكتالوج",
+    "previous": "البلاطة السابقة",
+    "next": "البلاطة التالية",
+    "position": "{current} / {total}",
+    "announce": "صفحة {current} من {total}. {name}.",
+    "hint": "أسهم لوحة المفاتيح أو السحب",
+    "fullDetails": "التفاصيل الكاملة",
+    "empty": "لا توجد بلاطات في هذه المجموعة بعد.",
+    "facts": {
+      "format": "المقاس",
+      "thickness": "السماكة",
+      "finish": "التشطيب",
+      "suitableFor": "مناسب لـ",
+      "both": "داخلي وخارجي",
+      "outdoorOnly": "خارجي",
+      "indoorOnly": "داخلي"
+    }
+  },
   "wishlist": {
     "title": "المفضلة",
     "empty": "لم تحفظ أي بلاط بعد.",

@@ -114,11 +114,11 @@ pnpm db:generate      # prisma generate
   `no-transition-colors`. The layer boundary is `eslint-plugin-boundaries` in
   `eslint.config.mjs`.
 - **Decisions of record** — `docs/adr/`. Every place the implementation departs
-  from `docs/01`–`docs/04`, with the reasoning. Sixteen so far.
+  from `docs/01`–`docs/04`, with the reasoning. Seventeen so far.
 - **End-to-end suite** — `e2e/`. Playwright against a production build,
-  84 specs: 59 admin/auth and 25 public (`public-catalog.spec.ts`,
-  `public-quote.spec.ts`). Runs in `prefers-reduced-motion` via the shared
-  fixture in `e2e/support/test.ts`.
+  96 specs: 59 admin/auth and 37 public (`public-catalog.spec.ts`,
+  `public-quote.spec.ts`, `public-catalogue.spec.ts`). Runs in
+  `prefers-reduced-motion` via the shared fixture in `e2e/support/test.ts`.
   Creates throwaway `e2e-*@e2e.invalid` staff accounts per test and deletes
   them in teardown; `assertIsTestAccount` makes it structurally unable to
   delete a real one. `e2e/support/totp.ts` computes real TOTP codes, which
@@ -158,6 +158,7 @@ pnpm db:generate      # prisma generate
 | 3 · Brand & motion | Complete — real logo, assembly intro, homepage, global chrome. |
 | 4 · Admin foundation | Complete — auth + TOTP, RBAC across three layers, dashboard shell, product CRUD, media library, inventory, audit log. |
 | — · Admin completion | Complete — taxonomy CRUD, quote-requests board, settings, staff/roles, trade accounts. Not a numbered phase; see below. |
+| — · Catalogue view | Complete — `/collections/[slug]/catalogue`, the page-turn browse. Tier 3 item pulled forward; [ADR-0017](docs/adr/0017-catalogue-view-before-phase-5.md). |
 | 5+ | Not started. **Do not begin the next phase without being asked.** |
 
 **"Admin completion" is not in docs/01 §10.** The roadmap's phases 5–9 are

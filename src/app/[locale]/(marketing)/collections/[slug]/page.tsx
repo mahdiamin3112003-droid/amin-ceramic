@@ -38,6 +38,7 @@ export default async function CollectionDetailPage({
   setRequestLocale(locale);
 
   const t = await getTranslations("collections");
+  const tc = await getTranslations("catalogue");
 
   // Sequential, not Promise.all — connection_limit=1 pool (see /products).
   const { collection, error } = await getCollectionBySlug(locale, slug);
@@ -104,14 +105,25 @@ export default async function CollectionDetailPage({
         <section className="mx-auto flex max-w-content flex-col gap-6 px-gutter py-16">
           {page && page.items.length > 0 ? (
             <>
-              <div className="flex items-baseline justify-between gap-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-4">
                 <h2 className="text-heading-lg">{t("productsInCollection")}</h2>
-                <Link
-                  href={`/products?collection=${collection.slug}`}
-                  className="text-body-sm text-primary underline underline-offset-4"
-                >
-                  {t("filterInCatalogue")}
-                </Link>
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* The catalogue view is offered HERE and not on /products
+                      because a collection is a sequence and a filtered result
+                      set is not — docs/02 §5.7, ADR-0017. */}
+                  <Link
+                    href={`/collections/${collection.slug}/catalogue`}
+                    className={buttonVariants({ variant: "secondary", size: "sm" })}
+                  >
+                    {tc("enter")}
+                  </Link>
+                  <Link
+                    href={`/products?collection=${collection.slug}`}
+                    className="text-body-sm text-primary underline underline-offset-4"
+                  >
+                    {t("filterInCatalogue")}
+                  </Link>
+                </div>
               </div>
               <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                 {page.items.map((product) => (
