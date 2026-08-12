@@ -37,10 +37,20 @@ export function ProductForm({
   product,
   lookups,
   publishBlockers,
+  mediaSlot,
 }: {
   product: AdminProductDetail | null;
   lookups: AdminProductLookups;
   publishBlockers?: readonly string[];
+  /**
+   * The `#media` tab's contents, composed by the server page.
+   *
+   * Passed in rather than built here because attaching needs the media
+   * library, which needs `media.manage` — a permission this form has no
+   * business knowing about. The page decides what the caller may see; the
+   * form just renders it.
+   */
+  mediaSlot?: ReactNode;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -130,6 +140,7 @@ export function ProductForm({
         <TabsList>
           <TabsTrigger value="basics">Basics</TabsTrigger>
           <TabsTrigger value="specs">Specs</TabsTrigger>
+          <TabsTrigger value="media">Media</TabsTrigger>
           <TabsTrigger value="commerce">Commerce</TabsTrigger>
           <TabsTrigger value="copy">Copy &amp; SEO</TabsTrigger>
         </TabsList>
@@ -329,6 +340,22 @@ export function ProductForm({
               defaultChecked={product?.isOutdoor ?? false}
             />
           </Section>
+        </TabsContent>
+
+        {/*
+          NOT `forceMount`, unlike every other panel. The others must stay
+          mounted so their inputs survive in FormData; this one contributes
+          nothing to the form — its controls are deliberately unnamed and
+          its actions fire on their own. Mounting it only when opened also
+          means the library dropdown is not built on every product edit.
+        */}
+        <TabsContent value="media">
+          {mediaSlot ?? (
+            <p className="rounded-md border border-dashed border-border p-6 text-body-sm text-stone-600">
+              Save the product first — an image has to be attached to something that
+              exists.
+            </p>
+          )}
         </TabsContent>
 
         <TabsContent

@@ -123,15 +123,34 @@ export interface AdminProductTranslation {
   readonly tags: readonly string[];
 }
 
-export type ProductMediaRole =
-  | "primary"
-  | "gallery"
-  | "room_scene"
-  | "macro_detail"
-  | "installed"
-  | "technical_drawing"
-  | "packaging"
-  | "swatch";
+/**
+ * Every value of the `product_media_role` enum, in one place.
+ *
+ * The type is DERIVED from this array rather than declared beside it, and
+ * the Zod schema in `media-actions.ts` is built from the same array. That
+ * is deliberate: the list previously existed as four separate hand-written
+ * unions — action schema, use-case signature, repository signature and this
+ * type — and two of them had silently drifted, omitting `technical_drawing`
+ * and `packaging`. The result was that a technical drawing could not be
+ * attached to a product through any code path, while docs/02 §3.3's PDP
+ * thumbnail strip names it explicitly ("product · scene · macro ·
+ * installed · drawing") for the contractor audience.
+ *
+ * One array, one type, one schema. Adding a role to the database enum now
+ * means adding it here and nowhere else.
+ */
+export const PRODUCT_MEDIA_ROLES = [
+  "primary",
+  "gallery",
+  "room_scene",
+  "macro_detail",
+  "installed",
+  "technical_drawing",
+  "packaging",
+  "swatch",
+] as const;
+
+export type ProductMediaRole = (typeof PRODUCT_MEDIA_ROLES)[number];
 
 /**
  * `product_media` has no surrogate key — its identity is

@@ -1,5 +1,6 @@
 import { adminMutation, adminQuery } from "@/application/auth/admin-mutation";
 import type { AdminMediaPage } from "@/domain/admin/media";
+import type { ProductMediaRole } from "@/domain/admin/product";
 import {
   attachMediaToProduct,
   createMediaAsset,
@@ -101,8 +102,7 @@ export async function updateMediaAltText(
 export async function attachMedia(
   productId: string,
   mediaAssetId: string,
-  role:
-    "primary" | "gallery" | "room_scene" | "macro_detail" | "installed" | "swatch",
+  role: ProductMediaRole,
   sortOrder: number,
 ): Promise<void> {
   // `product.update`, not `media.manage`: this changes what a PRODUCT

@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import type { AdminMediaAsset, AdminMediaPage } from "@/domain/admin/media";
+import type { ProductMediaRole } from "@/domain/admin/product";
 import { mediaUrl } from "@/infrastructure/media/storage";
 
 /**
@@ -168,8 +169,7 @@ export async function attachMediaToProduct(
   tx: Prisma.TransactionClient,
   productId: string,
   mediaAssetId: string,
-  role:
-    "primary" | "gallery" | "room_scene" | "macro_detail" | "installed" | "swatch",
+  role: ProductMediaRole,
   sortOrder: number,
 ): Promise<void> {
   await tx.productMedia.upsert({

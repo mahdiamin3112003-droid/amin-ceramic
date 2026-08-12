@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { fail, ok, type ActionResult } from "@/application/actions/result";
+import { PRODUCT_MEDIA_ROLES } from "@/domain/admin/product";
 import {
   attachMedia,
   deleteMediaAsset,
@@ -23,31 +24,22 @@ const altTextSchema = z.object({
     .nullable(),
 });
 
+/**
+ * Roles come from the domain's single list — see `PRODUCT_MEDIA_ROLES`.
+ * Re-typing them here is what let two copies drift and made
+ * `technical_drawing` unattachable through any code path.
+ */
 const attachSchema = z.object({
   productId: z.uuid(),
   mediaAssetId: z.uuid(),
-  role: z.enum([
-    "primary",
-    "gallery",
-    "room_scene",
-    "macro_detail",
-    "installed",
-    "swatch",
-  ]),
+  role: z.enum(PRODUCT_MEDIA_ROLES),
   sortOrder: z.coerce.number().int().min(0).max(999).default(0),
 });
 
 const detachSchema = z.object({
   productId: z.uuid(),
   mediaAssetId: z.uuid(),
-  role: z.enum([
-    "primary",
-    "gallery",
-    "room_scene",
-    "macro_detail",
-    "installed",
-    "swatch",
-  ]),
+  role: z.enum(PRODUCT_MEDIA_ROLES),
 });
 
 const deleteSchema = z.object({ id: z.uuid() });

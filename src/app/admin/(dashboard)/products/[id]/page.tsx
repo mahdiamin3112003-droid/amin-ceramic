@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ProductForm } from "@/app/admin/(dashboard)/products/product-form";
+import { ProductMediaPanel } from "@/app/admin/(dashboard)/products/product-media-panel";
 import { StatusBadge } from "@/app/admin/(dashboard)/products/status-badge";
 import { ProductActions } from "@/app/admin/(dashboard)/products/[id]/product-actions-bar";
 import { NotFoundError, hasPermission } from "@/application/auth/authorize";
@@ -11,6 +12,7 @@ import {
   getProductLookups,
   getPublishBlockers,
 } from "@/application/use-cases/admin/products";
+import { listMedia } from "@/application/use-cases/admin/media";
 import { STATUS_TRANSITIONS } from "@/domain/admin/product";
 
 export const metadata: Metadata = { title: "Edit product" };
@@ -33,11 +35,20 @@ export default async function EditProductPage({
     throw cause;
   }
 
-  const [lookups, mayPublish, mayDelete] = await Promise.all([
+  const [lookups, mayPublish, mayDelete, mayManageMedia] = await Promise.all([
     getProductLookups(),
     hasPermission("product.publish"),
     hasPermission("product.delete"),
+    hasPermission("media.manage"),
   ]);
+
+  /**
+   * The library is only fetched for someone who may actually attach from
+   * it. `listMedia` is gated on `media.manage` and would throw for an
+   * `editor` holding `product.update` alone — so the permission is checked
+   * before the call, not caught after it.
+   */
+  const mediaLibrary = mayManageMedia ? (await listMedia({ page: 1 })).assets : [];
 
   const blockers = getPublishBlockers(product);
   const enName = product.translations.find((t) => t.locale === "en")?.name;
@@ -73,7 +84,19 @@ export default async function EditProductPage({
         />
       </div>
 
-      <ProductForm product={product} lookups={lookups} publishBlockers={blockers} />
+      <ProductForm
+        product={product}
+        lookups={lookups}
+        publishBlockers={blockers}
+        mediaSlot={
+          <ProductMediaPanel
+            productId={product.id}
+            attached={product.media}
+            library={mediaLibrary}
+            canManageMedia={mayManageMedia}
+          />
+        }
+      />
     </div>
   );
 }
