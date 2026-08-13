@@ -266,6 +266,9 @@ model Visitor {
 
   @@index([tenantId, lastSeenAt])
   @@index([tenantId, appUserId])
+  /// FK-covering, single-column — see the note on Product in catalog.prisma. The claim flow re-parents a
+  /// visitor's saved items and quotes onto an account by this column.
+  @@index([appUserId])
   @@map("visitor")
 }
 
@@ -338,6 +341,10 @@ model RolePermission {
   permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Restrict)
 
   @@id([roleId, permissionKey])
+  /// FK-covering, single-column — see the note on Product in catalog.prisma. `roleId` leads the primary key, so
+  /// only the reverse direction needs one — and permission resolution runs
+  /// on EVERY admin request via `app.resolve_staff_identity`.
+  @@index([permissionKey])
   @@map("role_permission")
 }
 
@@ -354,6 +361,10 @@ model UserRole {
   role    Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([appUserId, roleId])
+  /// FK-covering, single-column — see the note on Product in catalog.prisma. `appUserId` leads the primary key.
+  /// The reverse — members of a role — is what the owner-lockout guards in
+  /// `domain/admin/people.ts` count before allowing a demotion.
+  @@index([roleId])
   @@map("user_role")
 }
 

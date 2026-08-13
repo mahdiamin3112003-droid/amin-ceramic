@@ -210,6 +210,11 @@ model QuoteRequest {
   @@index([tenantId, status])
   @@index([tenantId, visitorId])
   @@index([tenantId, assignedTo])
+  /// FK-covering, single-column — see the note on Product in catalog.prisma.
+  @@index([visitorId])
+  @@index([appUserId])
+  @@index([preferredLocationId])
+  @@index([priceTierId])
   @@map("quote_request")
 }
 
@@ -277,6 +282,8 @@ model QuoteRequestItem {
   @@index([quoteRequestId])
   @@index([zoneId])
   @@index([productId])
+  /// FK-covering, single-column — see the note on Product in catalog.prisma. The lot-crossing warning walks this one.
+  @@index([stockLotId])
   @@map("quote_request_item")
 }
 
@@ -337,6 +344,10 @@ model SampleRequest {
 
   @@index([tenantId, visitorId, requestedAt])
   @@index([tenantId, status])
+  /// FK-covering, single-column — see the note on Product in catalog.prisma.
+  @@index([visitorId])
+  @@index([appUserId])
+  @@index([locationId])
   @@map("sample_request")
 }
 

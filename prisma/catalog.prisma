@@ -134,6 +134,10 @@ model Collection {
 
   @@index([tenantId, slug])
   @@index([tenantId, brandId])
+  /// FK-covering, single-column — see the note on Product. The composite
+  /// above does not satisfy the constraint check, and
+  /// `brandDeactivationBlockedReason` counts collections by brand.
+  @@index([brandId])
   @@map("collection")
 }
 
@@ -177,6 +181,8 @@ model Category {
   products Product[]
 
   @@index([tenantId, parentId])
+  /// FK-covering, single-column — see the note on Product.
+  @@index([parentId])
   @@map("category")
 }
 
@@ -513,6 +519,24 @@ model Product {
 
   @@index([tenantId, brandId])
   @@index([tenantId, categoryId])
+  /// FK-covering indexes — see the note above `PRODUCT_MEDIA_ROLES`'s
+  /// sibling decision in docs/adr/0018. SINGLE-COLUMN on purpose: Postgres
+  /// only uses an index for a foreign-key constraint check when the FK
+  /// column LEADS it, so the composites above do not cover these, and the
+  /// house rule about `tenant_id` leading every composite is untouched
+  /// because these are not composite.
+  ///
+  /// These eight are the catalogue's filter and facet columns: the listing
+  /// `groupBy`s each of them, and the taxonomy guards count products by
+  /// material/finish/look/colour before allowing a hide.
+  @@index([brandId])
+  @@index([collectionId])
+  @@index([categoryId])
+  @@index([materialId])
+  @@index([finishId])
+  @@index([surfaceLookId])
+  @@index([colorFamilyId])
+  @@index([primaryMediaId])
   @@map("product")
 }
 
@@ -635,6 +659,11 @@ model ProductRelation {
   relatedProduct Product @relation("RelationTarget", fields: [relatedProductId], references: [id], onDelete: Cascade)
 
   @@id([productId, relatedProductId, relationType])
+  /// The composite primary key already covers lookups BY `productId`, since
+  /// it leads. The reverse direction — "what points AT this product" — has
+  /// nothing, and that is what the similar-tiles and complete-the-look rails
+  /// walk. Also what a product delete has to check.
+  @@index([relatedProductId])
   @@map("product_relation")
 }
 
@@ -689,5 +718,8 @@ model ProductPrice {
   priceTier PriceTier @relation(fields: [priceTierId], references: [id], onDelete: Restrict)
 
   @@unique([productId, priceTierId, minQuantityM2, validFrom])
+  /// FK-covering, single-column — see the note on Product in catalog.prisma.
+  /// `tenantId` is deliberately NOT indexed here — see docs/adr/0018.
+  @@index([priceTierId])
   @@map("product_price")
 }

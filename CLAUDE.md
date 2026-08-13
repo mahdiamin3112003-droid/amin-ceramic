@@ -87,8 +87,8 @@ pnpm format           # prettier --write
 pnpm test             # vitest run — unit + the TOTP generator's RFC vectors
 pnpm test:watch       # vitest
 pnpm test:e2e         # playwright — real browser, real Supabase, real roles
-pnpm test:e2e:public  #   the 25 customer-facing specs only (~7 min, no auth)
-pnpm test:e2e:admin   #   the 59 admin/auth specs only
+pnpm test:e2e:public  #   the 37 customer-facing specs only (~9 min, no auth)
+pnpm test:e2e:admin   #   the 65 admin/auth specs only
 pnpm test:e2e:ui      # playwright, interactive
 
 pnpm storybook        # design review surface, http://localhost:6006
@@ -114,9 +114,9 @@ pnpm db:generate      # prisma generate
   `no-transition-colors`. The layer boundary is `eslint-plugin-boundaries` in
   `eslint.config.mjs`.
 - **Decisions of record** — `docs/adr/`. Every place the implementation departs
-  from `docs/01`–`docs/04`, with the reasoning. Seventeen so far.
+  from `docs/01`–`docs/04`, with the reasoning. Eighteen so far.
 - **End-to-end suite** — `e2e/`. Playwright against a production build,
-  96 specs: 59 admin/auth and 37 public (`public-catalog.spec.ts`,
+  102 specs: 65 admin/auth and 37 public (`public-catalog.spec.ts`,
   `public-quote.spec.ts`, `public-catalogue.spec.ts`). Runs in
   `prefers-reduced-motion` via the shared fixture in `e2e/support/test.ts`.
   Creates throwaway `e2e-*@e2e.invalid` staff accounts per test and deletes

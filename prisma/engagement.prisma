@@ -82,6 +82,11 @@ model SavedItem {
 
   @@unique([visitorId, productId])
   @@index([tenantId, visitorId])
+  /// FK-covering, single-column — see the note on Product in catalog.prisma. `visitorId` leads the unique
+  /// constraint; `productId` alone had nothing, and a product delete has to
+  /// check it.
+  @@index([productId])
+  @@index([appUserId])
   @@map("saved_item")
 }
 

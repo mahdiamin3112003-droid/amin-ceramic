@@ -202,6 +202,9 @@ model StockLot {
 
   @@unique([tenantId, productId, locationId, lotNumber])
   @@index([tenantId, productId, locationId, status])
+  /// FK-covering, single-column — see the note on Product in catalog.prisma.
+  @@index([productId])
+  @@index([locationId])
   @@map("stock_lot")
 }
 
@@ -287,6 +290,9 @@ model ProductStock {
   // which Prisma cannot express; declared in the constraints migration.
   @@index([tenantId, productId])
   @@index([tenantId, locationId])
+  /// FK-covering, single-column — see the note on Product in catalog.prisma.
+  @@index([productId])
+  @@index([locationId])
   @@map("product_stock")
 }
 
