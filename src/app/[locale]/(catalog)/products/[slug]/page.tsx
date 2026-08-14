@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { CompareToggleButton } from "@/components/catalog/compare-toggle-button";
+import { ProductGallery } from "@/components/catalog/product-gallery";
 import { QuantityCalculator } from "@/components/catalog/quantity-calculator";
 import { SimilarProductsRail } from "@/components/catalog/similar-products-rail";
 import { SpecsTable } from "@/components/catalog/specs-table";
@@ -28,12 +29,13 @@ import { isLocale } from "@/i18n/routing";
 import type { StockStatus } from "@/domain/product/entity";
 
 /**
- * `/products/[slug]` — docs/02-ux-blueprint.md §3.3. "In this space" is not
- * built: it needs large room-scene photography with hotspots, which is a
- * media-ingestion concern (Phase 8) with no substitute — there's nothing to
- * render without real assets. Everything else in the spec (complete the
- * look, similar tiles, from the same collection, order a sample, WhatsApp)
- * is wired below.
+ * `/products/[slug]` — docs/02-ux-blueprint.md §3.3. The hero and thumbnail
+ * strip render `product.media` (falling back to the `colorHex` swatch when
+ * a product has no photos yet — see `ProductGallery`). "In this space" is
+ * still not built: it needs large room-scene photography with hotspots,
+ * a step beyond a plain gallery, and is still a Phase 8 ingestion concern.
+ * Everything else in the spec (complete the look, similar tiles, from the
+ * same collection, order a sample, WhatsApp) is wired below.
  */
 export const dynamic = "force-dynamic";
 
@@ -107,10 +109,10 @@ export default async function ProductDetailPage({
       </Breadcrumb>
 
       <div className="grid gap-8 lg:grid-cols-[55%_1fr]">
-        <div
-          className="aspect-square w-full rounded-md bg-stone-100"
-          style={{ backgroundColor: product.colorHex ?? undefined }}
-          aria-hidden="true"
+        <ProductGallery
+          media={product.media}
+          productName={product.name}
+          colorHex={product.colorHex}
         />
 
         <div className="flex flex-col gap-4">

@@ -11,11 +11,10 @@ import type { ProductSummary, StockStatus } from "@/domain/product/entity";
  * Grid card — docs/02-ux-blueprint.md §3.2: "Card shows finish and stock
  * without hovering. Hover-only information fails on touch."
  *
- * No product media pipeline exists yet (Phase 2 scope, see the plan's
- * "Out" list — ingestion is Phase 8), so `primaryMediaId` is currently
- * always null from seed data. The colour swatch below is a deliberate
- * placeholder for that gap, not a final visual — it uses the product's own
- * `colorHex`, so it is at least true to the tile rather than a generic grey box.
+ * Renders `primaryImageUrl` when the product has a photo attached. Falls
+ * back to a `colorHex` swatch otherwise — true to the tile rather than a
+ * generic grey box — which still applies to the archived seed catalogue
+ * and to any real product still waiting on photography.
  */
 
 const STOCK_BADGE_VARIANT: Record<
@@ -40,11 +39,23 @@ export function ProductCard({
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-md border border-border bg-background">
       <div className="relative aspect-square w-full overflow-hidden bg-stone-100">
-        <div
-          className="absolute inset-0"
-          style={{ backgroundColor: product.colorHex ?? undefined }}
-          aria-hidden="true"
-        />
+        {product.primaryImageUrl ? (
+          // Fixed Storage derivative widths (storage.ts), not Next's
+          // optimizer — see ADR-0013.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.primaryImageUrl}
+            alt={product.name}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: product.colorHex ?? undefined }}
+            aria-hidden="true"
+          />
+        )}
         <div className="absolute end-2 top-2 flex flex-col gap-1">
           <WishlistButton productId={product.id} initialWishlisted={isWishlisted} />
           <CompareToggleButton productId={product.id} />

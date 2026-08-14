@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 
+import { mediaUrl } from "@/infrastructure/media/storage";
 import type {
   Facets,
   FacetOption,
@@ -47,6 +48,9 @@ function summaryInclude(locale: string) {
     surfaceLook: { include: { translations: { where: { locale } } } },
     colorFamily: { include: { translations: { where: { locale } } } },
     productStocks: { where: { locationId: null } },
+    // Card-sized payload only — publicId/secureUrl are enough to build a
+    // URL. The full media list (with alt text) is detail-only, below.
+    primaryMedia: { select: { publicId: true, secureUrl: true } },
   } satisfies Prisma.ProductInclude;
 }
 
@@ -56,7 +60,15 @@ function detailInclude(locale: string) {
     attributeValues: {
       include: { attribute: { include: { translations: { where: { locale } } } } },
     },
-    media: { where: { isActive: true }, orderBy: { sortOrder: "asc" as const } },
+    media: {
+      where: { isActive: true },
+      orderBy: { sortOrder: "asc" as const },
+      include: {
+        mediaAsset: {
+          include: { translations: { where: { locale } } },
+        },
+      },
+    },
   } satisfies Prisma.ProductInclude;
 }
 
@@ -117,16 +129,19 @@ function toSummary(row: SummaryRow, locale: string): ProductSummary | null {
     isFeatured: row.isFeatured,
     isNew: row.isNew,
     primaryMediaId: row.primaryMediaId,
+    primaryImageUrl: row.primaryMedia ? mediaUrl(row.primaryMedia) : null,
     stockStatus: toStockStatus(row),
   };
 }
 
 function toMediaItem(row: DetailRow["media"][number]): ProductMediaItem {
+  const translation = row.mediaAsset.translations[0];
   return {
     mediaAssetId: row.mediaAssetId,
     role: row.role,
     sortOrder: row.sortOrder,
-    altText: null,
+    altText: translation?.altText ?? null,
+    url: mediaUrl(row.mediaAsset),
   };
 }
 

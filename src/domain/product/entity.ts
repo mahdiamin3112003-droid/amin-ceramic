@@ -79,6 +79,8 @@ export interface ProductSummary {
   readonly isFeatured: boolean;
   readonly isNew: boolean;
   readonly primaryMediaId: string | null;
+  /** Resolved by the repository when `primaryMediaId` is set; null otherwise — a product with no photo yet falls back to `colorHex`. */
+  readonly primaryImageUrl: string | null;
 
   /** Tenant-wide roll-up band (§6.6) — the grid's availability facet, never a raw quantity. */
   readonly stockStatus: StockStatus;
@@ -97,6 +99,8 @@ export interface ProductMediaItem {
     | "swatch";
   readonly sortOrder: number;
   readonly altText: string | null;
+  /** Resolved by the repository (infrastructure owns Storage URL shape) — a plain string, never a Prisma or Supabase type. */
+  readonly url: string;
 }
 
 export interface ProductAttributeEntry {

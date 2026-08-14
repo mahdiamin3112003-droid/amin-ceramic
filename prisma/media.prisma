@@ -87,6 +87,8 @@ model MediaAsset {
   tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   translations MediaTranslation[]
   productMedia ProductMedia[]
+  /// Back-relation for `Product.primaryMedia` — see the comment there.
+  primaryForProducts Product[]
 
   @@index([tenantId, provider])
   @@index([tenantId, checksumSha256])

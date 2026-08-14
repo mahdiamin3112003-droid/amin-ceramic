@@ -493,6 +493,12 @@ model Product {
   relationsAsSource ProductRelation[]       @relation("RelationSource")
   relationsAsTarget ProductRelation[]       @relation("RelationTarget")
   media             ProductMedia[]
+  /// Mirrors a real FK already in the database
+  /// (`product_primary_media_id_fkey`, ON DELETE SET NULL) that had no
+  /// matching Prisma relation — the reason `migrate diff` proposed dropping
+  /// it in docs/adr/0018. Modelling it lets the grid card resolve an image
+  /// URL in the same query instead of a second round trip per page.
+  primaryMedia MediaAsset? @relation(fields: [primaryMediaId], references: [id], onDelete: SetNull)
 
   // Inventory domain (prisma/inventory.prisma)
   stockLots          StockLot[]
