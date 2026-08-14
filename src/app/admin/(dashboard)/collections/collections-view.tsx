@@ -32,6 +32,7 @@ import {
   type BrandRow,
   type CollectionRow,
 } from "@/domain/admin/collection";
+import type { AdminMediaAsset } from "@/domain/admin/media";
 
 const LOCALES = ["en", "ar"] as const;
 const REQUIRED = ["en", "ar"];
@@ -47,9 +48,11 @@ const REQUIRED = ["en", "ar"];
 export function CollectionsView({
   collections,
   brands,
+  mediaLibrary,
 }: {
   collections: readonly CollectionRow[];
   brands: readonly BrandRow[];
+  mediaLibrary: readonly AdminMediaAsset[];
 }) {
   return (
     <Tabs defaultValue="collections">
@@ -61,7 +64,11 @@ export function CollectionsView({
       </TabsList>
 
       <TabsContent value="collections" className="mt-5">
-        <CollectionList collections={collections} brands={brands} />
+        <CollectionList
+          collections={collections}
+          brands={brands}
+          mediaLibrary={mediaLibrary}
+        />
       </TabsContent>
 
       <TabsContent value="brands" className="mt-5">
@@ -74,9 +81,11 @@ export function CollectionsView({
 function CollectionList({
   collections,
   brands,
+  mediaLibrary,
 }: {
   collections: readonly CollectionRow[];
   brands: readonly BrandRow[];
+  mediaLibrary: readonly AdminMediaAsset[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -247,6 +256,7 @@ function CollectionList({
       <CollectionDialog
         collection={editing}
         brands={brands}
+        mediaLibrary={mediaLibrary}
         open={creating || editing !== null}
         onClose={() => {
           setCreating(false);
@@ -260,11 +270,13 @@ function CollectionList({
 function CollectionDialog({
   collection,
   brands,
+  mediaLibrary,
   open,
   onClose,
 }: {
   collection: CollectionRow | null;
   brands: readonly BrandRow[];
+  mediaLibrary: readonly AdminMediaAsset[];
   open: boolean;
   onClose: () => void;
 }) {
@@ -357,20 +369,35 @@ function CollectionDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="heroMediaId">Hero image ID</Label>
-            <Input
+            <Label htmlFor="heroMediaId">Hero image</Label>
+            {/*
+              Was a free-text box asking for a pasted UUID. That shipped a
+              real bug: storage objects live at `{tenantId}/{hash}.webp`, so
+              the first id visible in any image URL is the TENANT's, and the
+              asset id appears nowhere in the path. A tenant id got pasted
+              here, saved without complaint, and the hero silently rendered
+              as nothing. A list of real assets makes that unrepresentable;
+              the FK added in 20260814140000 is the backstop beneath it.
+            */}
+            <select
               id="heroMediaId"
               name="heroMediaId"
               defaultValue={collection?.heroMediaId ?? ""}
-              spellCheck={false}
-              className="font-mono"
-            />
-            <span className="text-caption text-stone-600">
-              {/* A picker belongs here; the media library has no selection
-                  mode yet, so the id is pasted from /admin/media until it
-                  does. Said plainly rather than left to be discovered. */}
-              Paste an ID from the media library. A picker replaces this later.
-            </span>
+              disabled={mediaLibrary.length === 0}
+              className="h-11 rounded-sm border border-stone-300 bg-background px-3 text-body"
+            >
+              <option value="">No hero image</option>
+              {mediaLibrary.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.publicId}
+                </option>
+              ))}
+            </select>
+            {mediaLibrary.length === 0 ? (
+              <span className="text-caption text-stone-600">
+                No images in the library yet — upload one in Media first.
+              </span>
+            ) : null}
           </div>
 
           {LOCALES.map((locale) => {

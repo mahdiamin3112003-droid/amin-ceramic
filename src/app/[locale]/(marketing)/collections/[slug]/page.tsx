@@ -63,17 +63,31 @@ export default async function CollectionDetailPage({
   return (
     <main id="main">
       <section className="relative overflow-hidden border-b border-border">
-        {/* Gradient + navy scrim — see the homepage hero: the scrim sets the
-            contrast floor for the text above it, independent of where the
-            gradient lands. */}
-        <div
-          className="absolute inset-0 bg-gradient-to-br from-navy-950 via-navy-700 to-cyan-400"
-          aria-hidden="true"
-        />
+        {/* Hero image (or the gradient when none is set) + navy scrim. The
+            scrim is what sets the contrast floor for the text above it,
+            independent of what sits behind — which is exactly why an
+            arbitrary photograph can go back there safely. */}
+        {collection.heroImageUrl ? (
+          // Fixed Storage derivative widths (storage.ts), not Next's
+          // optimizer — see ADR-0013. Decorative: the collection name is
+          // rendered as text directly below, so alt="" avoids repeating it
+          // to a screen reader.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={collection.heroImageUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div
+            className="absolute inset-0 bg-gradient-to-br from-navy-950 via-navy-700 to-cyan-400"
+            aria-hidden="true"
+          />
+        )}
         <div className="absolute inset-0 bg-navy-950/75" aria-hidden="true" />
         <div className="relative mx-auto flex max-w-content flex-col gap-4 px-gutter py-20">
           <Breadcrumb>
-            {/* eslint-disable-next-line amin/no-cyan-text -- on the navy-950/75 scrim above: 8.2:1 worst case (measured against the gradient's lightest stop, cyan-400) */}
+            {/* eslint-disable-next-line amin/no-cyan-text -- on the navy-950/75 scrim above. Worst case is now a pure-white hero PHOTO, not the gradient's lightest stop: 6.18:1, still clear of AA's 4.5:1. (Was 8.13:1 when only the gradient could sit behind the scrim; recomputed when hero images were wired up rather than left asserting a figure that no longer applied.) */}
             <BreadcrumbList className="text-cyan-100">
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>

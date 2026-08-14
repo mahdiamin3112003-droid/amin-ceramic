@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import type { Collection } from "@/domain/catalog/entity";
+import { mediaUrl } from "@/infrastructure/media/storage";
 
 /**
  * Collection repository — `collection`/`collection_translation`
@@ -11,6 +12,9 @@ import type { Collection } from "@/domain/catalog/entity";
 function include(locale: string) {
   return {
     translations: { where: { locale } },
+    // Enough to build a URL, nothing more — same shape the product grid
+    // pulls for `primaryMedia`.
+    heroMedia: { select: { publicId: true, secureUrl: true } },
   } satisfies Prisma.CollectionInclude;
 }
 
@@ -26,6 +30,7 @@ function toDomain(row: Row): Collection | null {
     name: translation.name,
     description: translation.description,
     heroMediaId: row.heroMediaId,
+    heroImageUrl: row.heroMedia ? mediaUrl(row.heroMedia) : null,
     isFeatured: row.isFeatured,
   };
 }

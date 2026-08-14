@@ -9,9 +9,10 @@ import { isLocale } from "@/i18n/routing";
 /**
  * `/collections` — docs/02-ux-blueprint.md §1.1's COLLECTION INDEX.
  *
- * No hero imagery: `collection.heroMediaId` points at a `media_asset` row,
- * and no media pipeline exists until Phase 8 — the card uses the brand
- * gradient instead, same placeholder approach as the homepage hero.
+ * Renders `heroImageUrl` when the collection has one, falling back to the
+ * brand gradient when it does not. The fallback is not decoration: a
+ * collection with no hero is a real state the admin permits, and the
+ * gradient reads as deliberate where a broken image would not.
  */
 export const dynamic = "force-dynamic";
 
@@ -49,10 +50,22 @@ export default async function CollectionsPage({
                   href={`/collections/${collection.slug}`}
                   className="flex flex-col overflow-hidden rounded-md border border-border transition-surface duration-quick ease-material hover:shadow-hover focus-visible:outline-none"
                 >
-                  <div
-                    className="aspect-[4/3] w-full bg-gradient-to-br from-navy-700 via-blue-500 to-cyan-400"
-                    aria-hidden="true"
-                  />
+                  {collection.heroImageUrl ? (
+                    // Fixed Storage derivative widths (storage.ts), not
+                    // Next's optimizer — see ADR-0013.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={collection.heroImageUrl}
+                      alt={collection.name}
+                      loading="lazy"
+                      className="aspect-[4/3] w-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="aspect-[4/3] w-full bg-gradient-to-br from-navy-700 via-blue-500 to-cyan-400"
+                      aria-hidden="true"
+                    />
+                  )}
                   <div className="flex flex-col gap-2 p-5">
                     <h2 className="font-display text-heading-md">
                       {collection.name}

@@ -1,18 +1,29 @@
 import type { Metadata } from "next";
 
 import { CollectionsView } from "@/app/admin/(dashboard)/collections/collections-view";
+import { hasPermission } from "@/application/auth/authorize";
 import {
   listBrands,
   listCollections,
 } from "@/application/use-cases/admin/collections";
+import { listMedia } from "@/application/use-cases/admin/media";
 
 export const metadata: Metadata = { title: "Collections" };
 
 export default async function CollectionsPage() {
-  const [collections, brands] = await Promise.all([
+  const [collections, brands, mayManageMedia] = await Promise.all([
     listCollections(),
     listBrands(),
+    hasPermission("media.manage"),
   ]);
+
+  /**
+   * Same gating as the product Media tab: `listMedia` requires
+   * `media.manage`, so the permission is checked before the call rather
+   * than the throw being caught after it. Someone without it still gets the
+   * form — they just cannot pick a hero.
+   */
+  const mediaLibrary = mayManageMedia ? (await listMedia({ page: 1 })).assets : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,7 +37,11 @@ export default async function CollectionsPage() {
         </p>
       </div>
 
-      <CollectionsView collections={collections} brands={brands} />
+      <CollectionsView
+        collections={collections}
+        brands={brands}
+        mediaLibrary={mediaLibrary}
+      />
     </div>
   );
 }

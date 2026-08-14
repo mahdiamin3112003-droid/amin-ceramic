@@ -89,6 +89,8 @@ model MediaAsset {
   productMedia ProductMedia[]
   /// Back-relation for `Product.primaryMedia` — see the comment there.
   primaryForProducts Product[]
+  /// Back-relation for `Collection.heroMedia` — see the comment there.
+  heroForCollections Collection[] @relation("CollectionHero")
 
   @@index([tenantId, provider])
   @@index([tenantId, checksumSha256])

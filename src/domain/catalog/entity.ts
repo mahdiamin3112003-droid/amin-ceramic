@@ -86,6 +86,8 @@ export interface Collection {
   readonly name: string;
   readonly description: string | null;
   readonly heroMediaId: string | null;
+  /** Resolved by the repository (infrastructure owns Storage URL shape); null when no hero is set. */
+  readonly heroImageUrl: string | null;
   readonly isFeatured: boolean;
 }
 

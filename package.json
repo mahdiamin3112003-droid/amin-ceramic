@@ -34,6 +34,7 @@
     "db:bootstrap-owner": "tsx prisma/bootstrap-owner.ts",
     "db:import-products": "tsx prisma/import-products.ts",
     "db:archive-seed-products": "tsx prisma/archive-seed-products.ts",
+    "db:create-collections": "tsx prisma/create-collections.ts",
     "ai:backfill-embeddings": "tsx prisma/backfill-embeddings.ts",
     "ai:evaluate-retrieval": "tsx prisma/evaluate-retrieval.ts",
     "db:studio": "prisma studio",

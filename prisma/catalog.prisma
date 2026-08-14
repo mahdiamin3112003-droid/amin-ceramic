@@ -131,6 +131,10 @@ model Collection {
   brand        Brand?                  @relation(fields: [brandId], references: [id], onDelete: SetNull)
   products     Product[]
   translations CollectionTranslation[]
+  /// Added in 20260814140000_collection_hero_media_fk. The column existed
+  /// from the start but had NO foreign key, so any UUID was accepted — a
+  /// tenant id got stored here and the hero silently rendered as nothing.
+  heroMedia MediaAsset? @relation("CollectionHero", fields: [heroMediaId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, slug])
   @@index([tenantId, brandId])
@@ -138,6 +142,7 @@ model Collection {
   /// above does not satisfy the constraint check, and
   /// `brandDeactivationBlockedReason` counts collections by brand.
   @@index([brandId])
+  @@index([heroMediaId])
   @@map("collection")
 }
 
