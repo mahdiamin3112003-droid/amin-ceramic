@@ -32,6 +32,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:bootstrap-owner": "tsx prisma/bootstrap-owner.ts",
+    "db:import-products": "tsx prisma/import-products.ts",
+    "db:archive-seed-products": "tsx prisma/archive-seed-products.ts",
     "db:studio": "prisma studio",
     "db:reset": "tsx prisma/guard-destructive.ts && prisma migrate reset",
     "db:generate": "prisma generate"
