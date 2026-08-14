@@ -97,8 +97,12 @@ function makeSku(name: string, widthMm: number, heightMm: number): string {
     .join("")
     .slice(0, 12)
     .padEnd(6, "X");
-  const w = Math.round(widthMm / 100).toString().padStart(2, "0");
-  const h = Math.round(heightMm / 100).toString().padStart(2, "0");
+  const w = Math.round(widthMm / 100)
+    .toString()
+    .padStart(2, "0");
+  const h = Math.round(heightMm / 100)
+    .toString()
+    .padStart(2, "0");
   return `AC-${stem}-${w}${h}`;
 }
 
@@ -295,7 +299,8 @@ async function main(): Promise<void> {
       productId: product.id,
       locationId: null,
       availableM2: p.stockM2,
-      stockStatus: p.stockM2 > 0 ? ("in_stock" as const) : ("out_of_stock" as const),
+      stockStatus:
+        p.stockM2 > 0 ? ("in_stock" as const) : ("out_of_stock" as const),
     };
     if (rollUp) {
       await prisma.productStock.update({ where: { id: rollUp.id }, data: stock });
@@ -303,7 +308,9 @@ async function main(): Promise<void> {
       await prisma.productStock.create({ data: stock });
     }
 
-    console.log(`  ${existing ? "updated" : "created"}  ${sku.padEnd(16)} ${p.name}`);
+    console.log(
+      `  ${existing ? "updated" : "created"}  ${sku.padEnd(16)} ${p.name}`,
+    );
   }
 
   console.log(

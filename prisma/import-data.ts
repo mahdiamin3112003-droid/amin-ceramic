@@ -5,12 +5,13 @@
  * Names, formats, box data and stock: given by the client.
  * Thickness (10mm; 20mm for Bali Plus) and weight (28 kg/box): confirmed by
  * the client by format.
- * Material `porcelain`: INFERRED from large-format sizing, not confirmed off
- * a spec sheet. Flagged as such in the blocker report.
+ * Material `porcelain`: CONFIRMED by the client — no longer inferred.
  * `surfaceLook`: read from the product photography, not a spec sheet.
+ * `slipRating`: confirmed by the client — R10 across the board, except
+ * Bali Plus Ash 2cm at R12 (its outdoor-grade rating).
  *
  * ── Missing values are null, never text ──
- * `slipRating` is genuinely unknown and stays NULL. It must never become the
+ * Any field still genuinely unknown stays NULL. It must never become the
  * string "unknown" — that survives import, passes validation, and then renders
  * on the live site as `Slip rating: unknown`, which reads as broken rather
  * than incomplete. Draft status plus the blocker list is the mechanism for
@@ -25,7 +26,13 @@ export interface ImportProduct {
   readonly piecesPerBox: number;
   readonly m2PerBox: number;
   readonly kgPerBox: number;
-  /** Tenant-wide total. NOT split per warehouse — the split is unconfirmed. */
+  /**
+   * The tenant-wide total, and — per the client — the permanent form of
+   * this figure. Not a placeholder waiting on a Rmeileh/Choukine split: the
+   * business deliberately does not manage stock as two separate location
+   * totals, so a single unallocated (`locationId: null`) row is correct on
+   * an ongoing basis, not just for now.
+   */
   readonly stockM2: number;
 
   readonly finish: "matte";
@@ -37,8 +44,8 @@ export interface ImportProduct {
 
   readonly isIndoor: boolean;
   readonly isOutdoor: boolean;
-  /** Genuinely unknown for all 12. Stays NULL. */
-  readonly slipRating: null;
+  /** Confirmed by the client. R9–R13 per `SlipRating` in the domain layer. */
+  readonly slipRating: "R9" | "R10" | "R11" | "R12" | "R13" | null;
   /** Folder under `product-photos/`. Photos pending; nothing attached yet. */
   readonly photoFolder: string;
 }
@@ -46,7 +53,7 @@ export interface ImportProduct {
 /** The client's own name — house-brand product, a real value, not a stand-in. */
 export const BRAND_NAME = "Amin Ceramic Tiles";
 
-/** INFERRED from format, not confirmed. Reported as such. */
+/** Confirmed by the client — no longer inferred. */
 export const MATERIAL_KEY = "porcelain";
 
 /** ISO-3166 alpha-2. "Made in Spain" — the origin, not the brand. */
@@ -87,7 +94,7 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "alissa-beige",
   },
   {
@@ -105,7 +112,7 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "anhor-bone",
   },
   {
@@ -123,12 +130,13 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "belerofonte-natural",
   },
   {
-    // "ANTID." reads as antideslizante (anti-slip), but the rating is not
-    // confirmed, so `slipRating` stays null rather than being guessed at R11.
+    // "ANTID." reads as antideslizante (anti-slip). The client's confirmed
+    // rating (R10) happens to land below what that name implies — an actual
+    // answer, not the guess this comment used to warn against.
     name: "Antid. Delft Bone Matte",
     widthMm: 1000,
     heightMm: 1000,
@@ -143,7 +151,7 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "antid-delft-bone",
   },
   {
@@ -161,7 +169,7 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "alypia-crema",
   },
   {
@@ -179,13 +187,18 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "antid-aren-beige",
   },
   {
-    // 20mm, 1 piece per box — the profile of an outdoor paver. Deliberately
-    // NOT marked outdoor: the client is checking, and asserting it here would
-    // put a load-bearing claim on a spec sheet a contractor reads.
+    // 20mm, 1 piece per box — confirmed by the client as outdoor-only,
+    // consistent with the R12 slip rating (outdoor-grade) they also gave.
+    // `application_ids` is `["outdoor"]` alone: the five application keys
+    // (floor, wall, bathroom, kitchen, outdoor) are sibling tags with no
+    // built-in hierarchy — "outdoor" is not a variant of "floor" in this
+    // taxonomy, so tagging both would claim an indoor floor/wall use this
+    // product does not have. `isIndoor`/`isOutdoor` carry the same signal
+    // as a pair of booleans, for the technical filter/index.
     name: "Bali Plus Ash 2cm",
     widthMm: 1000,
     heightMm: 1000,
@@ -197,10 +210,10 @@ export const PRODUCTS: readonly ImportProduct[] = [
     finish: "matte",
     surfaceLook: "stone",
     colorFamily: "ash",
-    applications: ["floor"], // no wall, no outdoor — both unconfirmed
-    isIndoor: true,
-    isOutdoor: false,
-    slipRating: null,
+    applications: ["outdoor"],
+    isIndoor: false,
+    isOutdoor: true,
+    slipRating: "R12",
     photoFolder: "bali-plus-ash",
   },
   {
@@ -218,7 +231,7 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "cefeo-perla",
   },
   {
@@ -236,7 +249,7 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "chrono-mink",
   },
   {
@@ -254,7 +267,7 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "cletus-white",
   },
   {
@@ -272,7 +285,7 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "crotone-sand",
   },
   {
@@ -290,7 +303,7 @@ export const PRODUCTS: readonly ImportProduct[] = [
     applications: FLOOR_AND_WALL,
     isIndoor: true,
     isOutdoor: false,
-    slipRating: null,
+    slipRating: "R10",
     photoFolder: "crotone-pearl",
   },
 ];
