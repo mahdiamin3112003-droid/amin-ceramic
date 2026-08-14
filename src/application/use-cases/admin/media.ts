@@ -9,6 +9,7 @@ import {
   setMediaAltText,
   softDeleteMediaAsset,
 } from "@/infrastructure/db/repositories/media-repository";
+import { retireProductEmbedding } from "@/infrastructure/db/repositories/embedding-repository";
 import { deleteMediaObject, uploadMedia } from "@/infrastructure/media/upload";
 
 /**
@@ -107,8 +108,16 @@ export async function attachMedia(
 ): Promise<void> {
   // `product.update`, not `media.manage`: this changes what a PRODUCT
   // shows, so it belongs to whoever may edit that product.
-  return adminMutation("product.update", async (tx) => {
+  return adminMutation("product.update", async (tx, ctx) => {
     await attachMediaToProduct(tx, productId, mediaAssetId, role, sortOrder);
+
+    // The visual vector is computed from the primary photo, and a trigger
+    // maintains `product.primary_media_id` from these rows (§4.3, §5.6 #2).
+    // Retire on ANY role rather than checking for `primary`: attaching a
+    // gallery image can promote or reorder what the trigger considers
+    // primary, and re-embedding one product unnecessarily is cheap next to
+    // silently searching on a photo the product no longer leads with.
+    await retireProductEmbedding(tx, ctx.tenantId, productId);
 
     return {
       result: undefined,
@@ -127,8 +136,12 @@ export async function detachMedia(
   mediaAssetId: string,
   role: string,
 ): Promise<void> {
-  return adminMutation("product.update", async (tx) => {
+  return adminMutation("product.update", async (tx, ctx) => {
     await detachMediaFromProduct(tx, productId, mediaAssetId, role);
+
+    // Same reasoning as attach: removing any image can change which one is
+    // primary, and removing the primary leaves nothing to embed at all.
+    await retireProductEmbedding(tx, ctx.tenantId, productId);
 
     return {
       result: undefined,

@@ -27,6 +27,63 @@ export interface UpsertEmbeddingInput {
   readonly embeddingInputHash: string;
 }
 
+/**
+ * Retire a product's current embedding, because the thing it describes
+ * changed. Returns the number of rows retired (0 when the product was never
+ * embedded — the ordinary case for a new product).
+ *
+ * ── Why demote rather than regenerate here ──
+ * Regenerating needs a Replicate call, measured at 36s average and 212s at
+ * worst (cold start). `withRequestContext` gives a transaction 15 seconds.
+ * Embedding inside an admin mutation would therefore blow the transaction
+ * timeout on essentially every save, hold a pooled connection while doing
+ * it, and make a provider outage into "nobody can edit products" — for a
+ * derived artefact that is not part of the product's truth.
+ *
+ * ── Why this is the RIGHT failure mode, not a lesser one ──
+ * Retrieval filters `is_current = true`, so a retired row makes the product
+ * temporarily INVISIBLE to search rather than findable by its stale
+ * description or old photo. That is the trade docs/01 §6.3 already makes
+ * explicit for low-confidence matches: "An AI feature that confidently
+ * returns bad matches damages trust more than one that admits uncertainty."
+ * A tile matched on a photo it no longer has is exactly such a bad match.
+ *
+ * `pnpm ai:backfill-embeddings` restores it; the run is idempotent and
+ * keyed on `embedding_input_hash`, so it re-embeds only what changed.
+ */
+export async function retireProductEmbedding(
+  tx: RequestTransaction,
+  tenantId: string,
+  productId: string,
+): Promise<number> {
+  return tx.$executeRaw`
+    UPDATE product_embedding
+    SET is_current = false
+    WHERE tenant_id = ${tenantId}::uuid
+      AND product_id = ${productId}::uuid
+      AND is_current = true
+  `;
+}
+
+/** How many published products with a photo have no current embedding — the backlog `ai:backfill-embeddings` would clear. */
+export async function countProductsNeedingEmbedding(
+  tx: RequestTransaction,
+  tenantId: string,
+): Promise<number> {
+  const rows = await tx.$queryRaw<{ count: bigint }[]>`
+    SELECT count(*) AS count
+    FROM product p
+    WHERE p.tenant_id = ${tenantId}::uuid
+      AND p.deleted_at IS NULL
+      AND p.primary_media_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM product_embedding pe
+        WHERE pe.product_id = p.id AND pe.is_current = true
+      )
+  `;
+  return Number(rows[0]?.count ?? 0);
+}
+
 /** The `embedding_input_hash` of the current row, or null if none exists yet. */
 export async function getCurrentEmbeddingHash(
   tx: RequestTransaction,

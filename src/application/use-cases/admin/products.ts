@@ -19,6 +19,8 @@ import {
   updateAdminProduct,
   upsertAdminProductTranslation,
 } from "@/infrastructure/db/repositories/admin-product-repository";
+import { affectsEmbedding } from "@/domain/ai/embedding-text";
+import { retireProductEmbedding } from "@/infrastructure/db/repositories/embedding-repository";
 import { diffFields } from "@/infrastructure/db/repositories/audit-repository";
 import type {
   ProductTranslationValues,
@@ -106,6 +108,14 @@ export async function updateProduct(
 
     await updateAdminProduct(tx, ctx.tenantId, ctx.appUserId, id, product);
 
+    // Retire the embedding only when a field it is DERIVED from changed —
+    // `affectsEmbedding` is the single list, kept beside the text builder.
+    // Editing a price or a stock figure must not evict the product from
+    // search, which retiring unconditionally would do.
+    if (affectsEmbedding(before as unknown as Record<string, unknown>, product)) {
+      await retireProductEmbedding(tx, ctx.tenantId, id);
+    }
+
     // Only what actually changed reaches the audit log. A full snapshot per
     // edit makes the log unreadable at volume — see `diffFields`.
     const diff = diffFields(before as unknown as Record<string, unknown>, product);
@@ -137,6 +147,16 @@ export async function saveProductTranslation(
       ...translation,
       tags: [...translation.tags],
     });
+
+    // Name and description feed the semantic vector, so editing them makes
+    // the stored embedding wrong. Only `en` today: `backfill-embeddings.ts`
+    // reads the English translation alone. If a second locale is ever
+    // embedded, this condition and that query have to change together —
+    // which is why the coupling is named here rather than left to be
+    // rediscovered from an unexplained `=== "en"`.
+    if (translation.locale === "en") {
+      await retireProductEmbedding(tx, ctx.tenantId, id);
+    }
 
     return {
       result: undefined,

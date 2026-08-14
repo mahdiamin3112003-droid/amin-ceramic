@@ -7,6 +7,7 @@ import { buildEmbeddingText } from "@/domain/ai/embedding-text";
 import { openAiTextEmbeddings } from "@/infrastructure/ai/providers/openai-embeddings";
 import { replicateVisualEmbeddings } from "@/infrastructure/ai/providers/replicate-visual";
 import {
+  countProductsNeedingEmbedding,
   getCurrentEmbeddingHash,
   upsertProductEmbedding,
 } from "@/infrastructure/db/repositories/embedding-repository";
@@ -193,7 +194,20 @@ async function main(): Promise<void> {
     embedded += 1;
   }
 
-  console.log(`\n  ${String(embedded)} embedded, ${String(skipped)} skipped.\n`);
+  console.log(`\n  ${String(embedded)} embedded, ${String(skipped)} skipped.`);
+
+  // Admin edits RETIRE an embedding rather than regenerating it inline (see
+  // `retireProductEmbedding` for why), so a non-zero backlog here is the
+  // normal signal that this script needs re-running — not an error.
+  const remaining = await prisma.$transaction((tx) =>
+    countProductsNeedingEmbedding(tx, tenantId),
+  );
+  console.log(
+    remaining === 0
+      ? "  No products are waiting on an embedding.\n"
+      : `  ${String(remaining)} product(s) still have no current embedding — ` +
+          "they are invisible to search until this is re-run.\n",
+  );
 }
 
 main()
