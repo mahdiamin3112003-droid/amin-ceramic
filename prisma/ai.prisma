@@ -151,9 +151,14 @@ model ProductEmbedding {
   tenantId  String @map("tenant_id") @db.Uuid
   productId String @map("product_id") @db.Uuid
 
-  /// halfvec(1152) — SigLIP 2 image encoder. Unsupported: Prisma has no
+  /// halfvec(1024) — SigLIP 2 image encoder. Unsupported: Prisma has no
   /// native pgvector type, same pattern as ltree in catalog.prisma.
-  visualEmbedding   Unsupported("halfvec(1152)")? @map("visual_embedding")
+  ///
+  /// 1024, not the 1152 docs/01 §6.2 states: 1152 is the so400m checkpoint's
+  /// hidden size, and the checkpoint actually provisioned
+  /// (`varad-13/siglip-2-large`) is ViT-Large, which outputs 1024. See
+  /// docs/adr/0019 and migration 20260814120000_siglip_1024_dimensions.
+  visualEmbedding   Unsupported("halfvec(1024)")? @map("visual_embedding")
   /// halfvec(1536) — text-embedding-3-large, Matryoshka-truncated.
   semanticEmbedding Unsupported("halfvec(1536)")? @map("semantic_embedding")
 
@@ -192,8 +197,9 @@ model FinderSession {
   /// The "adjust our reading" control — this is labelled training data.
   userCorrections     Json?            @map("user_corrections")
 
-  /// halfvec(1152) — stored so results are reproducible.
-  queryVisualEmbedding Unsupported("halfvec(1152)")? @map("query_visual_embedding")
+  /// halfvec(1024) — stored so results are reproducible. Same model, so the
+  /// same dimension as `ProductEmbedding.visualEmbedding` — see the note there.
+  queryVisualEmbedding Unsupported("halfvec(1024)")? @map("query_visual_embedding")
 
   topScore          Decimal?              @map("top_score") @db.Decimal(6, 5)
   scoreDistribution Json?                 @map("score_distribution")
