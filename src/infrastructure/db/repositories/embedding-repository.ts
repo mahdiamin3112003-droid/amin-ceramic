@@ -211,3 +211,34 @@ export async function findBySemanticSimilarity(
   `;
   return rows.map((r) => ({ productId: r.product_id, distance: r.distance }));
 }
+
+/**
+ * The taxonomy keys the vision model may answer with — see
+ * `ExtractionVocabulary` in `providers/gemini-vision.ts` for why this is
+ * read rather than hardcoded.
+ *
+ * Deliberately NOT filtered to keys that currently have products: a colour
+ * the admin has defined but not yet used is still a legitimate reading of a
+ * photograph, and constraining the model to only what is in stock would
+ * teach it to mislabel anything new.
+ */
+export async function getExtractionVocabulary(
+  tx: RequestTransaction,
+  tenantId: string,
+): Promise<{
+  colorFamilies: readonly string[];
+  surfaceLooks: readonly string[];
+  finishes: readonly string[];
+}> {
+  const [colours, looks, finishes] = await Promise.all([
+    tx.colorFamily.findMany({ where: { tenantId }, select: { key: true } }),
+    tx.surfaceLook.findMany({ where: { tenantId }, select: { key: true } }),
+    tx.finish.findMany({ where: { tenantId }, select: { key: true } }),
+  ]);
+
+  return {
+    colorFamilies: colours.map((c) => c.key),
+    surfaceLooks: looks.map((l) => l.key),
+    finishes: finishes.map((f) => f.key),
+  };
+}

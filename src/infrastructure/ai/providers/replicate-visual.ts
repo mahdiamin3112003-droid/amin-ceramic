@@ -149,3 +149,39 @@ export const replicateVisualEmbeddings: ImageEmbeddingProvider = {
     }
   },
 };
+
+/** A 34-byte 1×1 WebP — validated as a real RIFF/WEBP file, not a pasted guess. */
+const WARM_UP_PIXEL =
+  "data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==";
+
+/**
+ * Queue a throwaway prediction to hold a model instance up. Does NOT wait
+ * for the result.
+ *
+ * ── Why not just call `embedImage` ──
+ * Because the cold start this exists to prevent is longer than any serverless
+ * function is allowed to live. Measured directly: a cold `embedImage` took
+ * **234,855 ms**. Vercel's ceiling is 60s on the current plan and 300s at
+ * most on any plan, so a blocking warm-up would be killed every time the
+ * model was actually cold — precisely when warming was needed.
+ *
+ * `predictions.create` returns once the prediction is QUEUED. Replicate then
+ * runs it server-side whether or not anything is still listening, so the
+ * instance comes up regardless of what happens to the caller. We never read
+ * the vector; the side effect is the entire point.
+ */
+export async function warmUpVisualModel(): Promise<{ predictionId: string }> {
+  const ref = modelRef();
+  const [, versionOrName] = ref.split(":");
+
+  try {
+    const prediction = await client().predictions.create(
+      versionOrName === undefined
+        ? { model: ref, input: { image: WARM_UP_PIXEL } }
+        : { version: versionOrName, input: { image: WARM_UP_PIXEL } },
+    );
+    return { predictionId: prediction.id };
+  } catch (cause) {
+    throw redactedError(cause);
+  }
+}

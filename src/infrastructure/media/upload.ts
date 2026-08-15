@@ -202,3 +202,72 @@ export async function deleteMediaObject(publicId: string): Promise<void> {
   ];
   await supabase.storage.from(MEDIA_BUCKET).remove(paths);
 }
+
+/** Longest edge for a Tile Finder query — docs/01 §6.3 step 2. */
+const FINDER_MAX_EDGE = 1024;
+
+/**
+ * Store a Tile Finder query image.
+ *
+ * ── Why not `uploadMedia` ──
+ * That builds the full five-width derivative ladder, which is right for a
+ * catalogue photo served to thousands of visitors at many sizes. A finder
+ * query is displayed once, beside its own results, and expires in 90 days
+ * (§9.2). Five extra sharp encodes and five extra uploads per query is real
+ * cost for output nothing will ever request.
+ *
+ * ── What it keeps from `uploadMedia`, deliberately ──
+ * `.rotate()` applies the EXIF orientation and drops the rest of the EXIF
+ * block, which is the step that removes GPS coordinates from a customer's
+ * phone photo — a privacy control, not a formatting nicety. Re-encoding
+ * through sharp is also what stands in for the malware scan `Upload
+ * .scanStatus` implies but which is not provisioned: the output is pixels
+ * sharp itself produced, so a payload embedded in the source container does
+ * not survive.
+ */
+export async function uploadFinderQuery(
+  tenantId: string,
+  file: { type: string; bytes: Buffer },
+): Promise<{ ok: true; publicId: string } | { ok: false; error: string }> {
+  if (!ACCEPTED_MIME.has(file.type)) {
+    return { ok: false, error: `Unsupported file type: ${file.type}` };
+  }
+  if (file.bytes.byteLength > MAX_BYTES) {
+    return { ok: false, error: "File is larger than 25 MB" };
+  }
+
+  let canonical: Buffer;
+  try {
+    canonical = await sharp(file.bytes, { failOn: "error" })
+      .rotate()
+      .resize({
+        width: FINDER_MAX_EDGE,
+        height: FINDER_MAX_EDGE,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 82 })
+      .toBuffer();
+  } catch {
+    return { ok: false, error: "That file could not be read as an image" };
+  }
+
+  // Content-addressed like the library, but under its own prefix so a
+  // retention sweep over query images cannot touch catalogue media.
+  const checksum = createHash("sha256").update(canonical).digest("hex");
+  const publicId = `${tenantId}/finder/${checksum}.webp`;
+
+  const { error } = await getSupabaseAdmin()
+    .storage.from(MEDIA_BUCKET)
+    .upload(publicId, canonical, {
+      contentType: "image/webp",
+      upsert: true,
+      cacheControl: "3600",
+    });
+
+  if (error) {
+    throw new Error(`finder upload failed: ${error.message}`);
+  }
+
+  return { ok: true, publicId };
+}
