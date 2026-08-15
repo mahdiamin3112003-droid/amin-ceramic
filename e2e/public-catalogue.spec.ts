@@ -16,7 +16,14 @@ import { expect, test } from "./support/test";
  * in the FULL-motion wipe would not fail here.
  */
 
-const COLLECTION = "calacatta-series";
+/**
+ * A REAL collection, not the old `calacatta-series` seed row — that one was
+ * archived once the client's own collections existed, and an archived
+ * collection 404s publicly, which would have failed every spec in this file.
+ * `concrete` is the largest (five products), so the turn, the ends and the
+ * deep-link specs all have somewhere to go.
+ */
+const COLLECTION = "concrete";
 const CATALOGUE = `/en/collections/${COLLECTION}/catalogue`;
 
 test.describe("catalogue view", () => {
@@ -35,6 +42,37 @@ test.describe("catalogue view", () => {
     await expect(page.getByText(/^1 \/ \d+$/)).toBeVisible();
     // The announcement is what a screen-reader user navigates by (§7.2).
     await expect(page.getByText(/^Page 1 of \d+\./)).toBeAttached();
+  });
+
+  /**
+   * The photograph is the whole point of a showroom view, and it was missing
+   * for four days without anything failing.
+   *
+   * This view was built before the client's photos existed and drew a
+   * `colorHex` swatch as an honest placeholder. When real photos landed, the
+   * grid card and the PDP were wired up and THIS was not — the stale "until
+   * the photography lands" comment made it look intentional. The same
+   * omission had already happened on the compare page.
+   *
+   * `naturalWidth > 0` rather than `toBeVisible()`, deliberately: an <img>
+   * whose src 404s is still "visible" to Playwright, and a broken image is
+   * exactly the regression worth catching. This file's own hit-test spec
+   * below exists for the sibling lesson.
+   */
+  test("shows the tile's real photograph, and it actually loads", async ({
+    page,
+  }) => {
+    await page.goto(CATALOGUE);
+
+    const photo = page.locator("main article img").first();
+    await expect(photo).toBeAttached();
+
+    await expect
+      .poll(
+        () => photo.evaluate((img: HTMLImageElement) => img.naturalWidth),
+        { message: "the catalogue photo never finished loading" },
+      )
+      .toBeGreaterThan(0);
   });
 
   /**

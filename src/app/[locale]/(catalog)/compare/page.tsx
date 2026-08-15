@@ -78,11 +78,25 @@ export default async function ComparePage({
                   className="min-w-48 border-s border-border p-3 text-start align-top"
                 >
                   <div className="flex flex-col gap-2">
-                    <div
-                      className="aspect-square w-full rounded-md bg-stone-100"
-                      style={{ backgroundColor: product.colorHex ?? undefined }}
-                      aria-hidden="true"
-                    />
+                    <div className="aspect-square w-full overflow-hidden rounded-md bg-stone-100">
+                      {product.primaryImageUrl ? (
+                        // alt="" — the product name is the very next
+                        // element in this cell.
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={product.primaryImageUrl}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div
+                          className="h-full w-full"
+                          style={{ backgroundColor: product.colorHex ?? undefined }}
+                          aria-hidden="true"
+                        />
+                      )}
+                    </div>
                     <span className="font-medium">{product.name}</span>
                     <span className="text-spec text-stone-600">{product.sku}</span>
                     <QuickAddButton

@@ -414,14 +414,32 @@ function CataloguePage({
 
   return (
     <article className="mx-auto grid h-full max-w-content gap-8 overflow-y-auto px-gutter py-8 lg:grid-cols-[55%_1fr] lg:items-center">
-      {/* §3.3: the image dominates, 55/45. Token-derived placeholder until
-          the client's photography lands — the same honest stand-in the
-          product card uses, so nothing about this layout changes later. */}
-      <div
-        className="aspect-[4/3] w-full rounded-md bg-stone-100 lg:aspect-auto lg:h-[min(68dvh,40rem)]"
-        style={{ backgroundColor: product.colorHex ?? undefined }}
-        aria-hidden="true"
-      />
+      {/* §3.3: the image dominates, 55/45. Falls back to the colorHex
+          swatch for a product with no photo yet — true to the tile rather
+          than an empty grey box. */}
+      <div className="aspect-[4/3] w-full overflow-hidden rounded-md bg-stone-100 lg:aspect-auto lg:h-[min(68dvh,40rem)]">
+        {product.primaryImageUrl ? (
+          // Not lazy, unlike the grid card: only ONE page is mounted at a
+          // time here, so this image IS the visible content — deferring it
+          // would blank the page it belongs to.
+          //
+          // alt="" because the product name is the <h1> directly beside it;
+          // naming the tile twice to a screen reader adds nothing. Same
+          // reasoning as the collection hero.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.primaryImageUrl}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div
+            className="h-full w-full"
+            style={{ backgroundColor: product.colorHex ?? undefined }}
+            aria-hidden="true"
+          />
+        )}
+      </div>
 
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-1">
