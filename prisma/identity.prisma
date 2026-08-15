@@ -148,6 +148,7 @@ model Tenant {
   appSettings           AppSetting[]
   featureFlags          FeatureFlag[]
   urlRedirects          UrlRedirect[]
+  rateLimits            RateLimit[]
 
   @@map("tenant")
 }

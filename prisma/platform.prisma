@@ -384,3 +384,23 @@ model UrlRedirect {
   @@unique([tenantId, fromPath])
   @@map("url_redirect")
 }
+
+/// Fixed-window counters for public AI endpoints — docs/01 §6.6, ADR-0020.
+///
+/// Written only through `app.consume_rate_limit()`: the table has RLS FORCEd
+/// with no policy, because it must be usable BEFORE a request is trusted and
+/// holds nothing worth exposing. Prisma models it so `prisma migrate diff`
+/// does not read the table as drift and propose dropping it.
+model RateLimit {
+  tenantId String @map("tenant_id") @db.Uuid
+  /// Already-hashed identity — never a raw IP. See `bucketFor`.
+  bucket   String
+  windowStart DateTime @map("window_start") @db.Timestamptz(6)
+  count       Int      @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, bucket, windowStart])
+  @@index([windowStart])
+  @@map("rate_limit")
+}

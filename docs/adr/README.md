@@ -32,3 +32,4 @@ disagree with one, that is the file to argue with.
 | [0017](0017-catalogue-view-before-phase-5.md)    | The catalogue page-turn view ships early, on collections rather than the filtered grid, because only a collection is a sequence                                              |
 | [0018](0018-fk-covering-indexes.md)              | 29 of 115 unindexed foreign keys are indexed; the other 86 are skipped on purpose, and the migration is hand-written because `migrate diff` would drop the SQL-owned indexes |
 | [0019](0019-siglip-checkpoint-dimensions.md)     | The visual embedding is 1024-d, not the specified 1152 — 1152 is the so400m checkpoint's size, and the provisioned checkpoint is ViT-Large                                   |
+| [0020](0020-postgres-rate-limiting.md)           | Rate limiting is a Postgres table, not the specified Upstash — the Tile Finder is the first public endpoint that spends money, and it fails closed                           |

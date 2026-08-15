@@ -68,10 +68,9 @@ test.describe("catalogue view", () => {
     await expect(photo).toBeAttached();
 
     await expect
-      .poll(
-        () => photo.evaluate((img: HTMLImageElement) => img.naturalWidth),
-        { message: "the catalogue photo never finished loading" },
-      )
+      .poll(() => photo.evaluate((img: HTMLImageElement) => img.naturalWidth), {
+        message: "the catalogue photo never finished loading",
+      })
       .toBeGreaterThan(0);
   });
 
