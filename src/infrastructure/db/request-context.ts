@@ -71,7 +71,32 @@ export async function withRequestContext<T>(
 
   return prisma.$transaction(
     async (tx) => {
-      await tx.$executeRaw`SELECT set_config('request.jwt.claims', ${jwtClaims}, true)`;
+      /**
+       * Two settings, one round trip, both transaction-local.
+       *
+       * The claims are what every RLS policy reads. The search_path is what
+       * lets pgvector's `halfvec` type and `<=>` operator resolve at all:
+       * the extension lives in the `extensions` schema (ADR-0011), and
+       * `app_runtime` connects with the default `"$user", public`.
+       *
+       * `ALTER ROLE app_runtime SET search_path` was the obvious fix and it
+       * does NOT work here — verified directly: through Supabase's
+       * transaction-mode pooler the connection still reported
+       * `"$user", public` and `halfvec` stayed unresolvable. Role defaults
+       * are applied when a server connection starts, which the pooler owns
+       * and reuses. Setting it per transaction is the only version that is
+       * true for every connection this code actually gets.
+       *
+       * Nothing caught it earlier because the only vector queries so far ran
+       * from `backfill-embeddings.ts` as the `postgres` superuser, whose
+       * search_path already includes `extensions` — a script proving nothing
+       * about the role a request runs as. `public` stays first so
+       * application tables win any name collision.
+       */
+      await tx.$executeRaw`
+        SELECT set_config('request.jwt.claims', ${jwtClaims}, true),
+               set_config('search_path', 'public, extensions', true)
+      `;
       return fn(tx);
     },
     {

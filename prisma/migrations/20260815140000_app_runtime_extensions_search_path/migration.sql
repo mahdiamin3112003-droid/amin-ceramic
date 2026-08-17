@@ -1,0 +1,32 @@
+-- `app_runtime` must be able to resolve pgvector's types and operators.
+--
+-- ── The failure ──
+-- The first real Tile Finder query returned:
+--
+--     ERROR: type "halfvec" does not exist
+--
+-- pgvector lives in the `extensions` schema (moved there by
+-- 20260803090000_extensions_schema_and_ltree, per ADR-0011). `app_runtime`
+-- had NO search_path setting at all, so it inherited the default —
+-- `"$user", public` — which does not include `extensions`.
+--
+-- Nothing caught this earlier because the only code that had ever touched a
+-- vector was `backfill-embeddings.ts`, which connects through DIRECT_URL as
+-- the `postgres` superuser. Supabase gives that role a search_path that
+-- already includes `extensions`, so the same SQL worked there and failed the
+-- moment a REQUEST ran it. The same shape of gap as the RLS one found in the
+-- same session: a script running as superuser proves nothing about what a
+-- request-time role can do.
+--
+-- ── Why the search_path and not schema-qualified SQL ──
+-- Qualifying the casts (`::extensions.halfvec`) fixes the types but NOT the
+-- distance operator: `<=>` is also owned by the extension and also resolved
+-- through search_path. Writing that explicitly means
+-- `OPERATOR(extensions.<=>)` at every call site, which is both unreadable
+-- and easy to forget in the next query. Setting the path once fixes every
+-- existing and future vector query.
+--
+-- `public` stays FIRST so application tables always win a name collision;
+-- `extensions` is only consulted for names public does not define.
+
+ALTER ROLE app_runtime SET search_path = public, extensions;

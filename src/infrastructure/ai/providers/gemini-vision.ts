@@ -15,7 +15,76 @@ import type { ExtractedAttributes } from "@/domain/ai/explanation";
  * throws outside Next's bundler, which would break any CLI use.
  */
 
-const MODEL = "gemini-2.0-flash";
+/**
+ * A current pinned version, overridable by env — chosen from measurement,
+ * after two wrong answers.
+ *
+ * ── What the wrong answers taught ──
+ * `gemini-2.0-flash` (the original hardcode) is retired: 404 on every call.
+ * `gemini-2.5-flash` fails the same way — "no longer available to new
+ * users" — and note it STILL APPEARS in the models list, so listing a model
+ * is not evidence you may call it. Anything picked from memory is a guess;
+ * this family moves faster than that.
+ *
+ * ── Why THIS version ──
+ * Probed with the real gate payload — the actual image and response schema,
+ * not a toy prompt. `gemini-3.5/3.6/3.7-flash` and `gemini-flash-latest` all
+ * classified the test tile correctly, so correctness did not separate them;
+ * 3.7 was fastest by a wide margin (6.6s against 11s, 36s and 17s).
+ *
+ * A note on the alias, because the obvious inference is wrong: three
+ * consecutive 503s on `gemini-flash-latest` looked like contention on the
+ * default everyone reaches for. Pinning 3.7 then returned 503 as well. The
+ * 503s are an intermittent upstream condition across the family, not a
+ * property of the alias — which is why the answer below is a retry, not a
+ * different model.
+ *
+ * `GEMINI_MODEL` overrides this, so the next retirement is an env change
+ * rather than a code change and a deploy.
+ */
+const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.7-flash";
+
+/**
+ * Retry transient upstream failures.
+ *
+ * Gemini returns `503 high demand` intermittently under its own load, and it
+ * clears within seconds — observed repeatedly while verifying this file. A
+ * customer waiting on a tile match should not be told the feature is broken
+ * because the first attempt landed during a spike.
+ *
+ * Only 503. NOT 429, and that is a correction rather than an omission:
+ * 429 here is `GenerateRequestsPerDayPerProjectPerModel-FreeTier` — a DAILY
+ * quota. Retrying it cannot succeed, and each attempt consumes another unit
+ * of the very allowance that ran out. A 404 (retired model) or 400 (bad
+ * request) is likewise a fault that will not fix itself.
+ */
+const MAX_ATTEMPTS = 3;
+const BASE_BACKOFF_MS = 1200;
+
+function isTransient(cause: unknown): boolean {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return message.includes("[503");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(operation: () => Promise<T>): Promise<T> {
+  let last: unknown;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      return await operation();
+    } catch (cause) {
+      last = cause;
+      if (!isTransient(cause) || attempt === MAX_ATTEMPTS - 1) throw cause;
+      // Exponential: 1.2s, 2.4s. Enough for a demand spike to pass without
+      // making a failing request feel hung.
+      await sleep(BASE_BACKOFF_MS * 2 ** attempt);
+    }
+  }
+  throw last;
+}
 
 let cached: GoogleGenerativeAI | null = null;
 
@@ -38,6 +107,8 @@ export type GateResult =
 
 export interface GateOutcome {
   readonly result: GateResult;
+  /** The model actually used — reported rather than assumed, so `ai_interaction` records reality after a `GEMINI_MODEL` override. */
+  readonly model: string;
   /** Shown to the visitor in STATE 4 when the gate rejects. Never free-form model prose — see below. */
   readonly reason: GateResult;
   readonly latencyMs: number;
@@ -45,6 +116,8 @@ export interface GateOutcome {
 
 export interface AttributeOutcome {
   readonly attributes: ExtractedAttributes;
+  /** See the note on `GateOutcome.model`. */
+  readonly model: string;
   /**
    * Free prose about the image, kept SEPARATE from the attributes above.
    *
@@ -115,30 +188,32 @@ export async function gateImage(
     },
   });
 
-  const response = await model.generateContent([
-    {
-      text:
-        "You are a validity gate for a tile-matching search. Classify this " +
-        "photograph.\n" +
-        "accepted: a tile, slab, floor, wall or other flat architectural " +
-        "surface, clearly enough lit and square-on enough to compare.\n" +
-        "not_a_tile: anything else — people, animals, objects, screenshots, " +
-        "documents.\n" +
-        "too_dark: a surface, but underexposed enough that colour cannot be " +
-        "judged.\n" +
-        "too_angled: a surface, but at so oblique an angle that pattern scale " +
-        "cannot be judged.\n" +
-        "unsafe: sexual, violent, or otherwise unsuitable content.\n" +
-        "Prefer 'accepted' when the photo is usable; only reject when it " +
-        "genuinely is not.",
-    },
-    { inlineData: { data: imageBase64, mimeType } },
-  ]);
+  const response = await withRetry(() =>
+    model.generateContent([
+      {
+        text:
+          "You are a validity gate for a tile-matching search. Classify this " +
+          "photograph.\n" +
+          "accepted: a tile, slab, floor, wall or other flat architectural " +
+          "surface, clearly enough lit and square-on enough to compare.\n" +
+          "not_a_tile: anything else — people, animals, objects, screenshots, " +
+          "documents.\n" +
+          "too_dark: a surface, but underexposed enough that colour cannot be " +
+          "judged.\n" +
+          "too_angled: a surface, but at so oblique an angle that pattern scale " +
+          "cannot be judged.\n" +
+          "unsafe: sexual, violent, or otherwise unsuitable content.\n" +
+          "Prefer 'accepted' when the photo is usable; only reject when it " +
+          "genuinely is not.",
+      },
+      { inlineData: { data: imageBase64, mimeType } },
+    ]),
+  );
 
   const parsed = JSON.parse(response.response.text()) as { result?: string };
   const result = isGateResult(parsed.result) ? parsed.result : "not_a_tile";
 
-  return { result, reason: result, latencyMs: Date.now() - start };
+  return { result, reason: result, model: MODEL, latencyMs: Date.now() - start };
 }
 
 function isGateResult(value: unknown): value is GateResult {
@@ -202,22 +277,24 @@ export async function extractAttributes(
     },
   });
 
-  const response = await model.generateContent([
-    {
-      text:
-        "Describe this tile or surface for a catalogue search.\n" +
-        "Return null for any field you cannot judge confidently from the " +
-        "photograph — a guess is worse than an absent value here, because it " +
-        "will be compared against real product specifications.\n" +
-        "formatGuess: the nominal size like '60x120' if the photo makes it " +
-        "inferable, otherwise null.\n" +
-        "description: one or two plain sentences about colour, pattern, " +
-        "texture and the impression it gives. This is embedded for semantic " +
-        "search, so describe what is visible rather than speculating about " +
-        "material or suitability.",
-    },
-    { inlineData: { data: imageBase64, mimeType } },
-  ]);
+  const response = await withRetry(() =>
+    model.generateContent([
+      {
+        text:
+          "Describe this tile or surface for a catalogue search.\n" +
+          "Return null for any field you cannot judge confidently from the " +
+          "photograph — a guess is worse than an absent value here, because it " +
+          "will be compared against real product specifications.\n" +
+          "formatGuess: the nominal size like '60x120' if the photo makes it " +
+          "inferable, otherwise null.\n" +
+          "description: one or two plain sentences about colour, pattern, " +
+          "texture and the impression it gives. This is embedded for semantic " +
+          "search, so describe what is visible rather than speculating about " +
+          "material or suitability.",
+      },
+      { inlineData: { data: imageBase64, mimeType } },
+    ]),
+  );
 
   const parsed = JSON.parse(response.response.text()) as Record<string, unknown>;
 
@@ -229,6 +306,7 @@ export async function extractAttributes(
       formatGuess: asString(parsed.formatGuess),
     },
     description: asString(parsed.description) ?? "",
+    model: MODEL,
     latencyMs: Date.now() - start,
   };
 }

@@ -37,11 +37,30 @@ export async function POST(request: NextRequest): Promise<Response> {
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const outcome = await startFinderSession({
-    bytes,
-    mimeType: file.type,
-    ipAddress,
-  });
+
+  /**
+   * Everything downstream of here calls something that can be unavailable —
+   * Supabase, Gemini, the database. An uncaught throw in a route handler
+   * returns an EMPTY body, not an error shape, so the client gets a JSON
+   * parse failure instead of a message it can show. Found exactly that way:
+   * a transient pooler outage produced a 0-byte response.
+   */
+  let outcome: Awaited<ReturnType<typeof startFinderSession>>;
+  try {
+    outcome = await startFinderSession({
+      bytes,
+      mimeType: file.type,
+      ipAddress,
+    });
+  } catch (cause) {
+    // Message only, never the object — provider SDK errors carry the
+    // originating request and its Authorization header.
+    console.error(
+      "[tile-finder] start failed:",
+      cause instanceof Error ? cause.message : String(cause),
+    );
+    return jsonError(503, "the finder is unavailable right now — please retry");
+  }
 
   switch (outcome.kind) {
     case "rate_limited":

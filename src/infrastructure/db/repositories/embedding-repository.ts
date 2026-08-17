@@ -1,5 +1,3 @@
-import { Prisma } from "@prisma/client";
-
 import type { RankedMatch } from "@/domain/ai/retrieval-fusion";
 import type { RequestTransaction } from "@/infrastructure/db/request-context";
 
@@ -148,23 +146,45 @@ export interface AttributeFilter {
   readonly finishKey?: string;
 }
 
-function attributeFilterSql(filter: AttributeFilter | undefined) {
-  const clauses: Prisma.Sql[] = [];
-  if (filter?.isIndoor !== undefined) {
-    clauses.push(Prisma.sql`p.is_indoor = ${filter.isIndoor}`);
-  }
-  if (filter?.isOutdoor !== undefined) {
-    clauses.push(Prisma.sql`p.is_outdoor = ${filter.isOutdoor}`);
-  }
-  if (filter?.finishKey !== undefined) {
-    clauses.push(Prisma.sql`f.key = ${filter.finishKey}`);
-  }
-  return clauses.length > 0
-    ? Prisma.sql`AND ${Prisma.join(clauses, " AND ")}`
-    : Prisma.empty;
-}
-
 const RETRIEVAL_CANDIDATE_LIMIT = 60;
+
+/**
+ * Both kNN legs go through `app.search_product_embeddings`, a SECURITY
+ * DEFINER function — NOT a direct query against `product_embedding`.
+ *
+ * That table is readable only by staff holding `ai.configure`, so a public
+ * Tile Finder request selecting from it directly matched zero rows and
+ * returned "no matches" with no error at all — indistinguishable from the
+ * feature honestly declining to guess. Opening it with a permissive SELECT
+ * policy would have fixed the symptom and let anyone copy every vector in
+ * the catalogue; the function returns only `(product_id, distance)`.
+ * See migration 20260815160000.
+ */
+async function searchEmbeddings(
+  tx: RequestTransaction,
+  tenantId: string,
+  kind: "visual" | "semantic",
+  queryEmbedding: readonly number[],
+  filter: AttributeFilter | undefined,
+): Promise<readonly RankedMatch[]> {
+  // An absent vector means that leg cannot run — returning nothing is
+  // correct, and passing an empty literal would be a cast error.
+  if (queryEmbedding.length === 0) return [];
+
+  const rows = await tx.$queryRaw<{ product_id: string; distance: number }[]>`
+    SELECT product_id, distance
+    FROM app.search_product_embeddings(
+      ${tenantId}::uuid,
+      ${toVectorLiteral(queryEmbedding)}::halfvec,
+      ${kind}::text,
+      ${RETRIEVAL_CANDIDATE_LIMIT}::int,
+      ${filter?.isIndoor ?? null}::boolean,
+      ${filter?.isOutdoor ?? null}::boolean,
+      ${filter?.finishKey ?? null}::text
+    )
+  `;
+  return rows.map((r) => ({ productId: r.product_id, distance: r.distance }));
+}
 
 /** docs/01-architecture.md §6.3 step 5a — visual kNN, top 60, published products only. */
 export async function findByVisualSimilarity(
@@ -173,20 +193,7 @@ export async function findByVisualSimilarity(
   queryEmbedding: readonly number[],
   filter?: AttributeFilter,
 ): Promise<readonly RankedMatch[]> {
-  const rows = await tx.$queryRaw<{ product_id: string; distance: number }[]>`
-    SELECT p.id AS product_id, (pe.visual_embedding <=> ${toVectorLiteral(queryEmbedding)}::halfvec) AS distance
-    FROM product_embedding pe
-    JOIN product p ON p.id = pe.product_id
-    JOIN finish f ON f.id = p.finish_id
-    WHERE pe.tenant_id = ${tenantId}::uuid
-      AND pe.is_current = true
-      AND p.status = 'published'
-      AND p.deleted_at IS NULL
-      ${attributeFilterSql(filter)}
-    ORDER BY pe.visual_embedding <=> ${toVectorLiteral(queryEmbedding)}::halfvec
-    LIMIT ${RETRIEVAL_CANDIDATE_LIMIT}
-  `;
-  return rows.map((r) => ({ productId: r.product_id, distance: r.distance }));
+  return searchEmbeddings(tx, tenantId, "visual", queryEmbedding, filter);
 }
 
 /** docs/01-architecture.md §6.3 step 5c — semantic kNN, top 60, same filter and scope as the visual leg. */
@@ -196,20 +203,7 @@ export async function findBySemanticSimilarity(
   queryEmbedding: readonly number[],
   filter?: AttributeFilter,
 ): Promise<readonly RankedMatch[]> {
-  const rows = await tx.$queryRaw<{ product_id: string; distance: number }[]>`
-    SELECT p.id AS product_id, (pe.semantic_embedding <=> ${toVectorLiteral(queryEmbedding)}::halfvec) AS distance
-    FROM product_embedding pe
-    JOIN product p ON p.id = pe.product_id
-    JOIN finish f ON f.id = p.finish_id
-    WHERE pe.tenant_id = ${tenantId}::uuid
-      AND pe.is_current = true
-      AND p.status = 'published'
-      AND p.deleted_at IS NULL
-      ${attributeFilterSql(filter)}
-    ORDER BY pe.semantic_embedding <=> ${toVectorLiteral(queryEmbedding)}::halfvec
-    LIMIT ${RETRIEVAL_CANDIDATE_LIMIT}
-  `;
-  return rows.map((r) => ({ productId: r.product_id, distance: r.distance }));
+  return searchEmbeddings(tx, tenantId, "semantic", queryEmbedding, filter);
 }
 
 /**

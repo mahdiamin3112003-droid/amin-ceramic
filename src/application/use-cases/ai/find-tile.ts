@@ -21,6 +21,7 @@ import {
   withRequestContext,
   type RequestTransaction,
 } from "@/infrastructure/db/request-context";
+import { ensureVisitor } from "@/infrastructure/db/repositories/visitor-repository";
 import { mediaUrl } from "@/infrastructure/media/storage";
 import { uploadFinderQuery } from "@/infrastructure/media/upload";
 
@@ -122,7 +123,7 @@ export async function startFinderSession(
         await logAiInteraction(tx, tenantId, {
           feature: "safety_gate",
           provider: "gemini",
-          model: "gemini-2.0-flash",
+          model: gate.model,
           operation: "vision",
           imageCount: 1,
           latencyMs: gate.latencyMs,
@@ -152,7 +153,7 @@ export async function startFinderSession(
       await logAiInteraction(tx, tenantId, {
         feature: "safety_gate",
         provider: "gemini",
-        model: "gemini-2.0-flash",
+        model: gate.model,
         operation: "vision",
         imageCount: 1,
         latencyMs: gate.latencyMs,
@@ -161,7 +162,7 @@ export async function startFinderSession(
       await logAiInteraction(tx, tenantId, {
         feature: "tile_finder",
         provider: "gemini",
-        model: "gemini-2.0-flash",
+        model: extracted.model,
         operation: "vision",
         imageCount: 1,
         latencyMs: extracted.latencyMs,
@@ -201,6 +202,16 @@ async function createSession(
     // invariant violation rather than an anonymous-visitor case.
     throw new Error("a finder session requires a visitor");
   }
+
+  /**
+   * The cookie is not the row. Middleware mints `ac_vid` on first request,
+   * but `visitor` is written lazily by whichever feature first needs it —
+   * so a visitor whose first action is a tile search has an id that
+   * satisfies the cookie and violates `finder_session_visitor_id_fkey`.
+   * Every other visitor-owned write does this first (basket, wishlist,
+   * samples); this one has to as well.
+   */
+  await ensureVisitor(tx, tenantId, visitorId);
 
   const rows = await tx.$queryRaw<{ id: string }[]>`
     INSERT INTO finder_session (
@@ -295,7 +306,23 @@ export async function matchFinderSession(sessionId: string): Promise<MatchOutcom
     );
   }
 
-  const fused = await withRequestContext({ tenantId, visitorId }, async (tx) => {
+  /**
+   * Cost telemetry in its OWN transaction, separate from retrieval.
+   *
+   * These two writes and the two kNN calls were one transaction, and it
+   * timed out for real: 15s budget, 21s elapsed, killing a search whose
+   * paid work had already completed.
+   *
+   * Splitting is not just shorter, it is more correct. `admin-mutation.ts`
+   * binds an AUDIT row to its mutation because an audit entry for a
+   * rolled-back write would be a lie. Cost telemetry is the opposite: the
+   * provider has already been called and already billed us by the time
+   * these rows are written, so that spend is true whether or not retrieval
+   * then succeeds. Tying it to retrieval's fate would DISCARD the record of
+   * money actually spent precisely when something went wrong — which is
+   * when the record matters most.
+   */
+  await withRequestContext({ tenantId, visitorId }, async (tx) => {
     await logAiInteraction(tx, tenantId, {
       feature: "embedding_semantic",
       provider: "openai",
@@ -318,16 +345,18 @@ export async function matchFinderSession(sessionId: string): Promise<MatchOutcom
         referenceId: sessionId,
       });
     }
+  });
 
-    return retrieveProducts(tx, tenantId, {
+  const fused = await withRequestContext({ tenantId, visitorId }, (tx) =>
+    retrieveProducts(tx, tenantId, {
       // With no visual vector the visual leg simply returns nothing to fuse;
       // an all-zero vector would be WRONG rather than absent, ranking by
       // proximity to a meaningless point.
       visualEmbedding: visual ?? [],
       semanticEmbedding: semantic.embedding,
       limit: RESULT_LIMIT,
-    });
-  });
+    }),
+  );
 
   const products = await withRequestContext({ tenantId }, (tx) =>
     loadProductAttributes(
@@ -337,22 +366,42 @@ export async function matchFinderSession(sessionId: string): Promise<MatchOutcom
     ),
   );
 
-  const matches: FinderMatch[] = fused.map((f) => {
-    // Semantic-only results have no visual distance, so there is no
-    // calibrated visual score to show. Calibration answers "how much does
-    // this LOOK like the photo", which the semantic leg cannot speak to.
-    const score = f.calibratedScore ?? calibrateScore(f.semanticDistance ?? 1);
-    const attrs = products.get(f.productId);
-    return {
-      productId: f.productId,
-      percent: score.percent,
-      band: score.band,
-      isProvisional: score.isProvisional,
-      explanation: attrs
-        ? explainMatch(session.attributes ?? {}, attrs).sentence
-        : "",
-    };
-  });
+  const matches: FinderMatch[] = fused
+    .map((f) => {
+      // Semantic-only results have no visual distance, so there is no
+      // calibrated visual score to show. Calibration answers "how much does
+      // this LOOK like the photo", which the semantic leg cannot speak to.
+      const score = f.calibratedScore ?? calibrateScore(f.semanticDistance ?? 1);
+      const attrs = products.get(f.productId);
+      return {
+        productId: f.productId,
+        percent: score.percent,
+        band: score.band,
+        isProvisional: score.isProvisional,
+        explanation: attrs
+          ? explainMatch(session.attributes ?? {}, attrs).sentence
+          : "",
+      };
+    })
+    /**
+     * Present in score order, not in fused order.
+     *
+     * RRF ranks by how highly BOTH legs rated a product; the number on the
+     * card is the calibrated VISUAL similarity. Those are two different
+     * orderings, and the first real query showed exactly how badly they can
+     * disagree: the correct tile scored 98% and came back FOURTH, under
+     * three products scoring 52%, 58% and 32%. A list reading
+     * "52%, 58%, 32%, 98%" looks broken, and worse, it buries the right
+     * answer where nobody scrolls.
+     *
+     * The cause is not a bug in RRF. With twelve products the semantic leg —
+     * a model's description of a photo, matched against product copy — is
+     * noisy enough to outvote a near-exact visual match. RRF is still the
+     * right way to CHOOSE candidates and will earn its keep on a large
+     * catalogue; it is the wrong thing to sort the final list by when the
+     * list displays a different number.
+     */
+    .sort((a, b) => b.percent - a.percent);
 
   const top = matches[0];
   const isConfident =
