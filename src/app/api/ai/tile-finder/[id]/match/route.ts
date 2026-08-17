@@ -1,3 +1,4 @@
+import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { jsonError, jsonOk } from "@/app/api/v1/_lib/respond";
@@ -21,14 +22,16 @@ export const maxDuration = 60;
 const paramsSchema = z.object({ id: z.uuid() });
 
 export async function POST(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success) return jsonError(400, "invalid session id");
 
   try {
-    const outcome = await matchFinderSession(parsed.data.id);
+    const locale =
+      request.nextUrl.searchParams.get("locale") === "ar" ? "ar" : "en";
+    const outcome = await matchFinderSession(parsed.data.id, locale);
     return jsonOk(outcome);
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);

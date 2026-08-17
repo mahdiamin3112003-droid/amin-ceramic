@@ -7,6 +7,7 @@ import {
 } from "@/application/auth/rate-limit";
 import { calibrateScore, isConfidentMatch } from "@/domain/ai/calibration";
 import { explainMatch, type ExtractedAttributes } from "@/domain/ai/explanation";
+import type { ProductSummary } from "@/domain/product/entity";
 import {
   extractAttributes,
   gateImage,
@@ -21,6 +22,7 @@ import {
   withRequestContext,
   type RequestTransaction,
 } from "@/infrastructure/db/request-context";
+import { getProductSummariesByIds } from "@/infrastructure/db/repositories/product-repository";
 import { ensureVisitor } from "@/infrastructure/db/repositories/visitor-repository";
 import { mediaUrl } from "@/infrastructure/media/storage";
 import { uploadFinderQuery } from "@/infrastructure/media/upload";
@@ -117,25 +119,16 @@ export async function startFinderSession(
   const gate = await gateImage(base64, input.mimeType);
 
   if (gate.result !== "accepted") {
-    const sessionId = await withRequestContext(
-      { tenantId, visitorId },
-      async (tx) => {
-        await logAiInteraction(tx, tenantId, {
-          feature: "safety_gate",
-          provider: "gemini",
-          model: gate.model,
-          operation: "vision",
-          imageCount: 1,
-          latencyMs: gate.latencyMs,
-          status: gate.result === "unsafe" ? "filtered" : "success",
-        });
-        return createSession(tx, tenantId, visitorId, {
-          gateResult: gate.result,
-          attributes: null,
-          description: null,
-          imagePublicId: stored.publicId,
-        });
-      },
+    await logGateCall(tenantId, visitorId, gate, {
+      status: gate.result === "unsafe" ? "filtered" : "success",
+    });
+    const sessionId = await withRequestContext({ tenantId, visitorId }, (tx) =>
+      createSession(tx, tenantId, visitorId, {
+        gateResult: gate.result,
+        attributes: null,
+        description: null,
+        imagePublicId: stored.publicId,
+      }),
     );
     return { kind: "rejected", sessionId, gate: gate.result, imageUrl };
   }
@@ -147,34 +140,26 @@ export async function startFinderSession(
   );
   const extracted = await extractAttributes(base64, input.mimeType, vocabulary);
 
-  const sessionId = await withRequestContext(
-    { tenantId, visitorId },
-    async (tx) => {
-      await logAiInteraction(tx, tenantId, {
-        feature: "safety_gate",
-        provider: "gemini",
-        model: gate.model,
-        operation: "vision",
-        imageCount: 1,
-        latencyMs: gate.latencyMs,
-        status: "success",
-      });
-      await logAiInteraction(tx, tenantId, {
-        feature: "tile_finder",
-        provider: "gemini",
-        model: extracted.model,
-        operation: "vision",
-        imageCount: 1,
-        latencyMs: extracted.latencyMs,
-        status: "success",
-      });
-      return createSession(tx, tenantId, visitorId, {
-        gateResult: "accepted",
-        attributes: extracted.attributes,
-        description: extracted.description,
-        imagePublicId: stored.publicId,
-      });
-    },
+  await logGateCall(tenantId, visitorId, gate, { status: "success" });
+  await withRequestContext({ tenantId, visitorId }, (tx) =>
+    logAiInteraction(tx, tenantId, {
+      feature: "tile_finder",
+      provider: "gemini",
+      model: extracted.model,
+      operation: "vision",
+      imageCount: 1,
+      latencyMs: extracted.latencyMs,
+      status: "success",
+    }),
+  );
+
+  const sessionId = await withRequestContext({ tenantId, visitorId }, (tx) =>
+    createSession(tx, tenantId, visitorId, {
+      gateResult: "accepted",
+      attributes: extracted.attributes,
+      description: extracted.description,
+      imagePublicId: stored.publicId,
+    }),
   );
 
   return {
@@ -183,6 +168,35 @@ export async function startFinderSession(
     attributes: extracted.attributes,
     imageUrl,
   };
+}
+
+/**
+ * Telemetry for the gate call, in its OWN transaction.
+ *
+ * Same reasoning as the match path: these rows record spend that has
+ * ALREADY happened, so they must not share a transaction with the write
+ * they precede. Bundling them made the session-write transaction four
+ * statements long, and it exceeded the 15s budget for real (P2028,
+ * "transaction already closed") on a slow link — losing both the telemetry
+ * and the session for a search whose paid work had completed.
+ */
+async function logGateCall(
+  tenantId: string,
+  visitorId: string | null,
+  gate: { model: string; latencyMs: number },
+  opts: { status: "success" | "filtered" },
+): Promise<void> {
+  await withRequestContext({ tenantId, visitorId }, (tx) =>
+    logAiInteraction(tx, tenantId, {
+      feature: "safety_gate",
+      provider: "gemini",
+      model: gate.model,
+      operation: "vision",
+      imageCount: 1,
+      latencyMs: gate.latencyMs,
+      status: opts.status,
+    }),
+  );
 }
 
 async function createSession(
@@ -245,6 +259,17 @@ export interface FinderMatch {
 export interface MatchOutcome {
   readonly sessionId: string;
   readonly matches: readonly FinderMatch[];
+  /**
+   * The matched products themselves, so a caller can render a result card
+   * without a second request.
+   *
+   * The UI first fetched these from `/api/v1/products/compare`, which was
+   * wrong twice over: that endpoint exists for the 2–4 product compare
+   * table and its schema caps `ids` at four, so a twelve-result ranking
+   * 400'd and every row silently rendered as nothing. Returning them here
+   * removes both the cap and the round trip.
+   */
+  readonly products: readonly ProductSummary[];
   /** False when the top result is below the confidence bar — docs/02 §3.4 STATE 4. */
   readonly isConfident: boolean;
   /**
@@ -266,7 +291,10 @@ export interface MatchOutcome {
  * is explicit that text embeddings cannot tell one veining pattern from
  * another), so the UI must not present them as a visual match.
  */
-export async function matchFinderSession(sessionId: string): Promise<MatchOutcome> {
+export async function matchFinderSession(
+  sessionId: string,
+  locale = "en",
+): Promise<MatchOutcome> {
   const { tenantId, visitorId } = await getRequestContext();
 
   const session = await withRequestContext({ tenantId, visitorId }, (tx) =>
@@ -274,7 +302,13 @@ export async function matchFinderSession(sessionId: string): Promise<MatchOutcom
   );
   if (!session) throw new Error("finder session not found");
   if (session.gateResult !== "accepted") {
-    return { sessionId, matches: [], isConfident: false, visualDegraded: false };
+    return {
+      sessionId,
+      matches: [],
+      products: [],
+      isConfident: false,
+      visualDegraded: false,
+    };
   }
 
   const imageUrl = mediaUrl({
@@ -421,7 +455,22 @@ export async function matchFinderSession(sessionId: string): Promise<MatchOutcom
     }),
   );
 
-  return { sessionId, matches, isConfident, visualDegraded: visual === null };
+  const summaries = await withRequestContext({ tenantId }, (tx) =>
+    getProductSummariesByIds(
+      tx,
+      tenantId,
+      locale,
+      matches.map((m) => m.productId),
+    ),
+  );
+
+  return {
+    sessionId,
+    matches,
+    products: summaries,
+    isConfident,
+    visualDegraded: visual === null,
+  };
 }
 
 interface LoadedSession {

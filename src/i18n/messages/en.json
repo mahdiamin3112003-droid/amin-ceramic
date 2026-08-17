@@ -365,5 +365,43 @@
       "note": "Nothing bounces — tile is heavy. Exits run about 30% faster than entrances. All of this collapses to nothing under prefers-reduced-motion.",
       "play": "Play"
     }
+  },
+  "tileFinder": {
+    "title": "Find the tile from a photo",
+    "subtitle": "Photograph any tile, floor or surface. We'll match it against {count} products.",
+    "dropzone": "Drop a photo, or browse",
+    "hint": "Works best with: flat-on shots · even light · one tile",
+    "detected": "We detected",
+    "results": "{count, plural, =0 {No matches} one {# match} other {# matches}}",
+    "worthConsidering": "Worth considering",
+    "approxMatch": "about {percent}%",
+    "priceOnRequest": "Price on request",
+    "tryAnother": "Try another photo",
+    "browseInstead": "Browse the catalogue",
+    "whatsapp": "Send it to us on WhatsApp",
+    "degraded": "The visual comparison didn't finish, so this ranking is based on the description alone. It may be less accurate.",
+    "steps": {
+      "reading": "Reading the image",
+      "extracting": "Reading colour and finish",
+      "detected": "Detected: {summary}",
+      "matching": "Finding matches",
+      "ranking": "Ranking"
+    },
+    "gate": {
+      "not_a_tile": "That doesn't look like a tile",
+      "too_dark": "That photo is too dark to read",
+      "too_angled": "That photo is at too steep an angle",
+      "unsafe": "That photo can't be used",
+      "accepted": "That photo can't be used",
+      "advice": "A flat, well-lit shot of a single tile works best."
+    },
+    "lowConfidence": {
+      "title": "No strong match",
+      "body": "Nothing in our {count} products is close enough to this photo for us to call it a match. We'd rather say so than guess."
+    },
+    "errors": {
+      "generic": "Something went wrong reading that photo. Please try again.",
+      "tooLarge": "That image is too large — please use one under 10MB."
+    }
   }
 }
