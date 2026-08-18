@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { jsonError, jsonOk } from "@/app/api/v1/_lib/respond";
+import { isTileFinderEnabled } from "@/lib/feature-flags";
 import { startFinderSession } from "@/application/use-cases/ai/find-tile";
 
 /**
@@ -17,6 +18,10 @@ export const maxDuration = 60;
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 export async function POST(request: NextRequest): Promise<Response> {
+  // Fail closed — 404, not 403: a 403 would confirm the endpoint exists.
+  // This is the switch that keeps the feature dark through a deploy.
+  if (!isTileFinderEnabled()) return jsonError(404, "not found");
+
   const form = await request.formData().catch(() => null);
   const file = form?.get("image");
 

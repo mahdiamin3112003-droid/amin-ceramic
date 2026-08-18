@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { jsonError, jsonOk } from "@/app/api/v1/_lib/respond";
+import { isTileFinderEnabled } from "@/lib/feature-flags";
 import { matchFinderSession } from "@/application/use-cases/ai/find-tile";
 
 /**
@@ -25,6 +26,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
+  // Fail closed — 404, not 403: a 403 would confirm the endpoint exists.
+  // This is the switch that keeps the feature dark through a deploy.
+  if (!isTileFinderEnabled()) return jsonError(404, "not found");
+
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success) return jsonError(400, "invalid session id");
 

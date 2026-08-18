@@ -3,6 +3,7 @@ import { setRequestLocale } from "next-intl/server";
 
 import { TileFinderView } from "@/app/[locale]/(ai)/tile-finder/tile-finder-view";
 import { listProducts } from "@/application/use-cases/catalog/list-products";
+import { isTileFinderEnabled } from "@/lib/feature-flags";
 import { isLocale } from "@/i18n/routing";
 
 /**
@@ -33,6 +34,13 @@ export default async function TileFinderPage({
 }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
+
+  /**
+   * 404 rather than a "coming soon" page, deliberately: it neither
+   * advertises unfinished work nor confirms the route exists, and it
+   * matches exactly what production serves today.
+   */
+  if (!isTileFinderEnabled()) notFound();
   setRequestLocale(locale);
 
   const { page } = await listProducts(locale, {});
