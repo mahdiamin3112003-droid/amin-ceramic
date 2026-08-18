@@ -13,10 +13,31 @@ import { warmUpEmbeddingModel } from "@/application/use-cases/ai/warm-up";
  * cold starts are the norm here, not the tail. No visitor absorbs four
  * minutes, and no serverless function survives it either.
  *
- * A ping every 10 minutes holds an instance up, pulling real queries toward
+ * A ping every ~10 minutes holds an instance up, pulling real queries toward
  * the 1.6s floor. It does not eliminate the risk — Replicate may still evict
  * between ticks — which is why the query path degrades honestly rather than
  * assuming warmth.
+ *
+ * ── NOTHING CALLS THIS ON A SCHEDULE YET ──
+ * The `crons` entry was removed from vercel.json because Vercel's Hobby plan
+ * rejects any schedule that runs more than once a day, and the deploy fails
+ * outright:
+ *
+ *   "Hobby accounts are limited to daily cron jobs. This cron expression
+ *    would run more than once per day."
+ *
+ * (The schedule was a ten-minute interval. It is spelled out in words here
+ * because the cron syntax for it closes a block comment.)
+ *
+ * A DAILY ping was not substituted, deliberately: Replicate evicts within
+ * minutes, so it would warm nothing while looking like a working keep-warm
+ * job — worse than no job at all, because it invites the false conclusion
+ * that warming is handled.
+ *
+ * The route itself is correct and ready. It needs a scheduler: Vercel Pro,
+ * or an external one (GitHub Actions already runs in this repo) calling it
+ * with the CRON_SECRET bearer token. Until then every Tile Finder search
+ * takes the cold path, which is why TILE_FINDER_ENABLED stays off.
  *
  * ── Why it does not wait, and why that is not laziness ──
  * The cold start is longer than the function is allowed to live, so a

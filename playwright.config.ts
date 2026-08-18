@@ -112,6 +112,14 @@ export default defineConfig({
 
   webServer: {
     command: "pnpm build && pnpm start --port 3100",
+    /**
+     * The Tile Finder ships behind a fail-closed flag (src/lib/feature-flags),
+     * so without this every one of its specs would assert against a 404 and
+     * pass for the wrong reason. Enabled HERE rather than in .env.local so the
+     * suite states its own preconditions and a developer's local settings
+     * cannot silently change what CI covers.
+     */
+    env: { ...process.env, TILE_FINDER_ENABLED: "true" },
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     // A cold production build is slow the first time.
