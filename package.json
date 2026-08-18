@@ -37,6 +37,7 @@
     "db:create-collections": "tsx prisma/create-collections.ts",
     "ai:backfill-embeddings": "tsx prisma/backfill-embeddings.ts",
     "ai:evaluate-retrieval": "tsx prisma/evaluate-retrieval.ts",
+    "ai:measure-latency": "tsx prisma/measure-warm-latency.ts",
     "db:studio": "prisma studio",
     "db:reset": "tsx prisma/guard-destructive.ts && prisma migrate reset",
     "db:generate": "prisma generate"

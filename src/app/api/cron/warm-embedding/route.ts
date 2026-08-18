@@ -18,26 +18,24 @@ import { warmUpEmbeddingModel } from "@/application/use-cases/ai/warm-up";
  * between ticks — which is why the query path degrades honestly rather than
  * assuming warmth.
  *
- * ── NOTHING CALLS THIS ON A SCHEDULE YET ──
- * The `crons` entry was removed from vercel.json because Vercel's Hobby plan
- * rejects any schedule that runs more than once a day, and the deploy fails
- * outright:
+ * ── What schedules it ──
+ * Vercel Cron, every ten minutes (`crons` in vercel.json).
  *
- *   "Hobby accounts are limited to daily cron jobs. This cron expression
- *    would run more than once per day."
+ * It briefly did not have a scheduler at all. The entry was removed when
+ * Vercel rejected the deploy — "Hobby accounts are limited to daily cron
+ * jobs" — and a daily ping was deliberately NOT substituted, because
+ * Replicate evicts within minutes and it would have warmed nothing while
+ * looking like a working keep-warm job.
  *
- * (The schedule was a ten-minute interval. It is spelled out in words here
- * because the cron syntax for it closes a block comment.)
- *
- * A DAILY ping was not substituted, deliberately: Replicate evicts within
- * minutes, so it would warm nothing while looking like a working keep-warm
- * job — worse than no job at all, because it invites the false conclusion
- * that warming is handled.
- *
- * The route itself is correct and ready. It needs a scheduler: Vercel Pro,
- * or an external one (GitHub Actions already runs in this repo) calling it
- * with the CRON_SECRET bearer token. Until then every Tile Finder search
- * takes the cold path, which is why TILE_FINDER_ENABLED stays off.
+ * GitHub Actions was tried as the free alternative and measured rather than
+ * assumed: over 69 minutes it fired ZERO of roughly six scheduled runs
+ * (a manual dispatch worked, so the workflow and secret were correct —
+ * GitHub simply does not honour a ten-minute cadence on free runners).
+ * Latency was statistically identical to having no scheduler: median
+ * 9,608 ms against a 9,130 ms baseline, with a 229,906 ms cold call. The
+ * account moved to Vercel Pro on that evidence, and the workflow was
+ * deleted rather than left as a second pinger — two schedulers would double
+ * the Replicate spend, and warmth is not cumulative.
  *
  * ── Why it does not wait, and why that is not laziness ──
  * The cold start is longer than the function is allowed to live, so a
